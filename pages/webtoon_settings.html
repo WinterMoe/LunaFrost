@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Webtoon Translation Settings - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header>
+        <div style="margin-bottom: 20px;">
+            <a href="/" class="btn btn-primary">← Back to Novels</a>
+        </div>
+        <h1>🖼️ Webtoon Translation Settings</h1>
+        <p class="help-text">Configure OCR methods and API keys for webtoon/manga image translation</p>
+    </header>
+
+    <div id="alert-container"></div>
+
+    <div class="settings-card">
+        <h2>🔍 OCR Method Selection</h2>
+
+        <div class="form-group">
+            <label for="default-ocr-method">Default OCR Method</label>
+            <select id="default-ocr-method" class="form-control">
+                <option value="google">Google Cloud Vision (Requires API Key)</option>
+                <option value="azure">Azure Computer Vision (Requires API Key)</option>
+                <option value="nanobananapro">Nano Banana Pro (Best Quality - Requires API Key)</option>
+            </select>
+            <p class="help-text">Choose your preferred OCR method for webtoon translation</p>
+        </div>
+
+        
+        <div class="settings-card" style="margin-top: 20px;">
+            <h3>Google Cloud Vision API</h3>
+            <div class="form-group">
+                <label for="google-api-key">API Key or Service Account JSON File Path</label>
+                <input type="password" id="google-api-key" class="form-control"
+                    placeholder="Enter API key or /path/to/service-account-key.json" autocomplete="off">
+                <p class="help-text">
+                    <strong>Option 1: Simple API Key (Recommended - Easier):</strong><br>
+                    1. Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a><br>
+                    2. Select your project (or create one)<br>
+                    3. Enable "Cloud Vision API" (APIs & Services → Enable APIs → Search "Cloud Vision API")<br>
+                    4. Go to "APIs & Services" → "Credentials"<br>
+                    5. Click "Create Credentials" → "API Key"<br>
+                    6. Copy the API key and paste it above<br>
+                    7. (Optional) Click "Restrict Key" → Restrict to "Cloud Vision API" for security<br>
+                    <br>
+                    <strong>Option 2: Service Account JSON (For advanced users):</strong><br>
+                    Upload a service account JSON file to your server and enter the full path (e.g.,
+                    <code>/var/www/translator/google-credentials.json</code>)<br>
+                    <br>
+                    <strong>Free tier:</strong> 1,000 requests/month
+                </p>
+            </div>
+        </div>
+
+        
+        <div class="settings-card" style="margin-top: 20px;">
+            <h3>Azure Computer Vision API</h3>
+            <div class="form-group">
+                <label for="azure-api-key">API Key</label>
+                <input type="password" id="azure-api-key" class="form-control" placeholder="Enter your Azure API key"
+                    autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="azure-endpoint">Endpoint</label>
+                <input type="text" id="azure-endpoint" class="form-control"
+                    placeholder="https://your-resource.cognitiveservices.azure.com/">
+                <p class="help-text">
+                    <strong>How to get it:</strong><br>
+                    1. Go to <a href="https://portal.azure.com/" target="_blank">Azure Portal</a><br>
+                    2. Click "Create a resource" → Search for "Computer Vision" → Click "Create"<br>
+                    3. Fill in the form:
+                    - Name: Choose a name (e.g., "my-vision-api")
+                    - Subscription: Select your subscription
+                    - Location: Choose a region
+                    - Pricing tier: Select "Free F0" (5,000 requests/month)<br>
+                    4. Click "Review + create" → "Create"<br>
+                    5. Wait for deployment, then click "Go to resource"<br>
+                    6. Find your credentials (try these locations):
+                <ul style="margin-left: 20px; margin-top: 5px;">
+                    <li>Look for <strong>"Keys and Endpoint"</strong> in the left sidebar menu</li>
+                    <li>Or look for <strong>"Quick start"</strong> → Keys and endpoint are shown there</li>
+                    <li>Or look for <strong>"Resource Management"</strong> → "Keys and Endpoint"</li>
+                    <li>Or in the Overview page, look for a section called <strong>"Show access keys"</strong> or
+                        <strong>"Manage keys"</strong></li>
+                    <li>Sometimes it's under <strong>"Settings"</strong> → "Keys"</li>
+                </ul>
+                7. You'll see:
+                - <strong>KEY 1</strong> or <strong>KEY 2</strong> (copy either one) → Paste in "API Key" field
+                above<br>
+                - <strong>Endpoint</strong> (copy the URL, looks like
+                <code>https://your-resource.cognitiveservices.azure.com/</code>) → Paste in "Endpoint" field above<br>
+                <strong>Free tier:</strong> 5,000 requests/month<br>
+                <strong>Note:</strong> If you still can't find it, try clicking on your resource name in the top
+                breadcrumb, then look in the left sidebar for "Keys and Endpoint"
+                </p>
+            </div>
+        </div>
+
+        
+        <div class="settings-card" style="margin-top: 20px;">
+            <h3>Nano Banana Pro (All-in-One Translation)</h3>
+            <p class="help-text">This method provides the highest quality translations with automatic text rendering.
+                Choose which API to use:</p>
+
+            <div class="form-group">
+                <label>API Source</label>
+                <div style="display: flex; gap: 20px; margin-top: 10px;">
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="radio" name="nanobananapro-api-source" value="gemini" id="nanobananapro-gemini"
+                            style="margin-right: 8px;">
+                        <span><strong>Gemini API Key</strong> (from OCR settings)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="radio" name="nanobananapro-api-source" value="openrouter"
+                            id="nanobananapro-openrouter" style="margin-right: 8px;">
+                        <span><strong>OpenRouter API Key</strong> (from main settings)</span>
+                    </label>
+                </div>
+                <p class="help-text" style="margin-top: 10px;">
+                    <strong>Gemini:</strong> Uses your Gemini API key configured below<br>
+                    <strong>OpenRouter:</strong> Uses your OpenRouter API key from <a href="/settings">main settings</a>
+                    (model: google/gemini-3-pro-image-preview)
+                </p>
+            </div>
+
+            <div class="form-group">
+                <label for="gemini-api-key">Gemini API Key</label>
+                <input type="password" id="gemini-api-key" class="form-control" placeholder="Enter your Gemini API key"
+                    autocomplete="off">
+                <p class="help-text">
+                    Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI
+                        Studio</a><br>
+                    Only needed if using "Gemini API Key" option above
+                </p>
+            </div>
+        </div>
+
+        <button type="button" class="btn btn-primary" id="save-settings-btn" style="margin-top: 20px;">Save
+            Settings</button>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const alertContainer = document.getElementById('alert-container');
+
+        function showAlert(message, type = 'success') {
+            alertContainer.innerHTML = `<div class="alert alert-${type}" style="margin-bottom: 20px;">${message}</div>`;
+            setTimeout(() => {
+                alertContainer.innerHTML = '';
+            }, 5000);
+        }
+
+        fetch('/api/webtoon/settings')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('default-ocr-method').value = data.default_ocr_method || 'google';
+
+                const apiSource = data.nanobananapro_api_source || 'gemini';
+                if (apiSource === 'openrouter') {
+                    document.getElementById('nanobananapro-openrouter').checked = true;
+                } else {
+                    document.getElementById('nanobananapro-gemini').checked = true;
+                }
+
+                if (data.google_api_key_configured) {
+                    const googleField = document.getElementById('google-api-key');
+                    googleField.value = '••••••••••••••••';
+                    googleField.placeholder = 'API key is configured ✓';
+                    googleField.style.borderColor = '#48bb78';
+                }
+                if (data.azure_api_key_configured) {
+                    const azureKeyField = document.getElementById('azure-api-key');
+                    azureKeyField.value = '••••••••••••••••';
+                    azureKeyField.placeholder = 'API key is configured ✓';
+                    azureKeyField.style.borderColor = '#48bb78';
+                }
+                if (data.azure_endpoint) {
+                    const azureEndpointField = document.getElementById('azure-endpoint');
+                    azureEndpointField.value = data.azure_endpoint;
+                    azureEndpointField.style.borderColor = '#48bb78';
+                }
+                if (data.gemini_api_key_configured) {
+                    const geminiField = document.getElementById('gemini-api-key');
+                    geminiField.value = '••••••••••••••••';
+                    geminiField.placeholder = 'API key is configured ✓';
+                    geminiField.style.borderColor = '#48bb78';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading settings:', error);
+            });
+
+        const saveBtn = document.getElementById('save-settings-btn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', function () {
+
+                saveBtn.disabled = true;
+                const originalText = saveBtn.textContent;
+                saveBtn.textContent = 'Saving...';
+
+                const nanobananaproSource = document.querySelector('input[name="nanobananapro-api-source"]:checked');
+
+                const formData = {
+                    default_ocr_method: document.getElementById('default-ocr-method').value,
+                    nanobananapro_api_source: nanobananaproSource ? nanobananaproSource.value : 'gemini'
+                };
+
+                const googleKey = document.getElementById('google-api-key').value.trim();
+                if (googleKey && googleKey !== '••••••••••••••••') formData.google_api_key = googleKey;
+
+                const azureKey = document.getElementById('azure-api-key').value.trim();
+                if (azureKey && azureKey !== '••••••••••••••••') formData.azure_api_key = azureKey;
+
+                const azureEndpoint = document.getElementById('azure-endpoint').value.trim();
+                if (azureEndpoint) formData.azure_endpoint = azureEndpoint;
+
+                const geminiKey = document.getElementById('gemini-api-key').value.trim();
+                if (geminiKey && geminiKey !== '••••••••••••••••') formData.gemini_api_key = geminiKey;
+
+                console.log('Saving settings:', { ...formData, google_api_key: googleKey ? '***' : '', azure_api_key: azureKey ? '***' : '', gemini_api_key: geminiKey ? '***' : '' });
+
+                if (typeof window.fetchWithCSRF === 'undefined') {
+                    showAlert('Error: CSRF utility not loaded. Please refresh the page.', 'error');
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalText;
+                    return;
+                }
+
+                window.fetchWithCSRF('/api/webtoon/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                })
+                    .then(response => {
+                        console.log('Response status:', response.status);
+                        if (!response.ok) {
+                            return response.json().then(data => {
+                                throw new Error(data.error || `HTTP ${response.status}: ${response.statusText}`);
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Response data:', data);
+                        if (data.message || data.success) {
+                            showAlert('Settings saved successfully!', 'success');
+
+                            const googleField = document.getElementById('google-api-key');
+                            const azureKeyField = document.getElementById('azure-api-key');
+                            const azureEndpointField = document.getElementById('azure-endpoint');
+                            const geminiField = document.getElementById('gemini-api-key');
+
+                            if (googleKey && googleKey !== '••••••••••••••••') {
+                                googleField.value = '••••••••••••••••';
+                                googleField.placeholder = 'API key is configured ✓';
+                                googleField.style.borderColor = '#48bb78';
+                            }
+                            if (azureKey && azureKey !== '••••••••••••••••') {
+                                azureKeyField.value = '••••••••••••••••';
+                                azureKeyField.placeholder = 'API key is configured ✓';
+                                azureKeyField.style.borderColor = '#48bb78';
+                            }
+
+                            if (azureEndpoint) {
+                                azureEndpointField.style.borderColor = '#48bb78';
+                            }
+                            if (geminiKey && geminiKey !== '••••••••••••••••') {
+                                geminiField.value = '••••••••••••••••';
+                                geminiField.placeholder = 'API key is configured ✓';
+                                geminiField.style.borderColor = '#48bb78';
+                            }
+                        } else if (data.error) {
+                            showAlert('Error saving settings: ' + data.error, 'error');
+                        } else {
+                            showAlert('Settings saved successfully!', 'success');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error saving settings:', error);
+                        showAlert('Error saving settings: ' + error.message, 'error');
+                    })
+                    .finally(() => {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = originalText;
+                    });
+            });
+        } else {
+            console.error('Save button not found!');
+        }
+    });
+</script>
+{% endblock %}

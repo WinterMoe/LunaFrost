@@ -1,0 +1,308 @@
+{% extends "base.html" %}
+
+{% block title %}Create Manga/Webtoon - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header>
+        <div style="margin-bottom: 20px;">
+            <a href="/" class="btn btn-secondary">← Back to Library</a>
+        </div>
+        <h1 id="create-heading">📚 Create New Manga</h1>
+        <p class="help-text" id="create-subtext">Set up your manga with metadata, then add images to translate</p>
+    </header>
+
+    <div class="create-form-card">
+        <form id="create-form">
+            
+            <div class="form-group">
+                <label for="title" class="required-label">Title</label>
+                <input type="text" class="form-control" id="title" name="title"
+                    placeholder="Enter the title of your manga" required maxlength="500">
+            </div>
+
+            
+            <div class="form-group">
+                <label>Reading Mode</label>
+                <div class="reading-mode-selector">
+                    <div class="mode-option selected" data-mode="manga">
+                        <div class="mode-icon">📖</div>
+                        <div class="mode-name">Manga</div>
+                        <div class="mode-desc">Page-by-page reading with arrow keys</div>
+                    </div>
+                    <div class="mode-option" data-mode="webtoon">
+                        <div class="mode-icon">📜</div>
+                        <div class="mode-name">Webtoon</div>
+                        <div class="mode-desc">Vertical scroll, multiple images per chapter</div>
+                    </div>
+                </div>
+                <input type="hidden" id="reading-mode" name="reading_mode" value="manga">
+            </div>
+
+            
+            <div class="form-group">
+                <label for="source-language" class="required-label">Source Language</label>
+                <select class="form-control" id="source-language" name="source_language" required>
+                    <option value="korean">Korean (한국어)</option>
+                    <option value="japanese">Japanese (日本語)</option>
+                </select>
+                <p class="help-text">
+                    The original language of the text in your images
+                </p>
+            </div>
+
+            
+            <div class="form-group">
+                <label for="author">Author</label>
+                <input type="text" class="form-control" id="author" name="author" placeholder="Author name (optional)"
+                    maxlength="255">
+            </div>
+
+            
+            <div class="form-group">
+                <label for="tags">Tags</label>
+                <input type="text" class="form-control" id="tags" name="tags"
+                    placeholder="action, romance, fantasy (comma-separated)">
+                <p class="help-text">Add tags separated by commas</p>
+            </div>
+
+            
+            <div class="form-group">
+                <label for="synopsis">Synopsis</label>
+                <textarea class="form-control" id="synopsis" name="synopsis" rows="4"
+                    placeholder="A brief description of the story (optional)"></textarea>
+            </div>
+
+            
+            <div class="form-group">
+                <label for="custom-prompt-suffix">Custom Translation Prompt Suffix</label>
+                <textarea class="form-control" id="custom-prompt-suffix" name="custom_prompt_suffix" rows="3"
+                    placeholder="e.g. Always translate 'Hyung' as 'Big Brother'."></textarea>
+                <p class="help-text">Custom instructions to append to the system prompt for translations.</p>
+            </div>
+
+            
+            <button type="submit" class="btn btn-primary btn-lg w-100" id="create-btn">
+                <span id="btn-text">Create Manga & Continue to Image Upload</span>
+                <span id="btn-spinner" class="spinner-border spinner-border-sm d-none ms-2" role="status"></span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .create-form-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 30px;
+        margin-top: 20px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-group {
+        margin-bottom: 24px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .required-label::after {
+        content: " *";
+        color: #dc3545;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 1rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        background: var(--input-bg);
+        color: var(--text-primary);
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    textarea.form-control {
+        resize: vertical;
+        min-height: 100px;
+    }
+
+    .reading-mode-selector {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 8px;
+    }
+
+    .mode-option {
+        border: 2px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--card-bg);
+    }
+
+    .mode-option:hover {
+        border-color: var(--primary-color);
+        background: rgba(99, 102, 241, 0.05);
+    }
+
+    .mode-option.selected {
+        border-color: var(--primary-color);
+        background: rgba(99, 102, 241, 0.1);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .mode-icon {
+        font-size: 2.5rem;
+        margin-bottom: 8px;
+    }
+
+    .mode-name {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--text-primary);
+        margin-bottom: 4px;
+    }
+
+    .mode-desc {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .btn-primary {
+        background: var(--primary-color);
+        border: none;
+        padding: 16px 32px;
+        font-weight: 600;
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+
+    .btn-primary:hover {
+        background: var(--primary-hover);
+        transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .help-text {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-top: 6px;
+    }
+
+    @media (max-width: 600px) {
+        .reading-mode-selector {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<script>
+    const MODE_TEXT = {
+        manga: {
+            heading: '📚 Create New Manga',
+            subtext: 'Set up your manga with metadata, then add images to translate',
+            titlePlaceholder: 'Enter the title of your manga',
+            button: 'Create Manga & Continue to Image Upload',
+            error: 'Failed to create manga'
+        },
+        webtoon: {
+            heading: '📚 Create New Webtoon',
+            subtext: 'Set up your webtoon with metadata, then add images to translate',
+            titlePlaceholder: 'Enter the title of your webtoon',
+            button: 'Create Webtoon & Continue to Image Upload',
+            error: 'Failed to create webtoon'
+        }
+    };
+
+    function updateModeText(mode) {
+        const text = MODE_TEXT[mode] || MODE_TEXT.manga;
+        document.getElementById('create-heading').textContent = text.heading;
+        document.getElementById('create-subtext').textContent = text.subtext;
+        const titleInput = document.getElementById('title');
+        titleInput.placeholder = text.titlePlaceholder;
+        document.getElementById('btn-text').textContent = text.button;
+        document.title = `${text.heading.replace('📚 ', '')} - LunaFrost Translator`;
+    }
+
+    document.querySelectorAll('.mode-option').forEach(option => {
+        option.addEventListener('click', function () {
+            document.querySelectorAll('.mode-option').forEach(opt => opt.classList.remove('selected'));
+            this.classList.add('selected');
+            const mode = this.dataset.mode;
+            document.getElementById('reading-mode').value = mode;
+            updateModeText(mode);
+        });
+    });
+
+    updateModeText('manga');
+
+    document.getElementById('create-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const btn = document.getElementById('create-btn');
+        const btnText = document.getElementById('btn-text');
+        const btnSpinner = document.getElementById('btn-spinner');
+
+        btn.disabled = true;
+        btnText.textContent = 'Creating...';
+        btnSpinner.classList.remove('d-none');
+
+        const formData = {
+            title: document.getElementById('title').value.trim(),
+            reading_mode: document.getElementById('reading-mode').value,
+            source_language: document.getElementById('source-language').value,
+            author: document.getElementById('author').value.trim(),
+            tags: document.getElementById('tags').value.trim(),
+            synopsis: document.getElementById('synopsis').value.trim(),
+            custom_prompt_suffix: document.getElementById('custom-prompt-suffix').value.trim()
+        };
+
+        try {
+            const response = await window.fetchWithCSRF('/api/webtoon/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.job_id) {
+
+                window.location.href = `/webtoon/${data.job_id}/upload`;
+            } else {
+                const mode = formData.reading_mode;
+                const errText = MODE_TEXT[mode]?.error || 'Failed to create';
+                throw new Error(data.error || errText);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            window.showAlertModal('Error', error.message, 'error');
+
+            btn.disabled = false;
+            btnText.textContent = 'Create & Continue to Image Upload';
+            btnSpinner.classList.add('d-none');
+        }
+    });
+</script>
+{% endblock %}

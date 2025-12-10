@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+
+{% block title %}Token Usage - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header>
+        <div class="dashboard-nav">
+            <a href="/" class="btn btn-primary">← Back to Novels</a>
+            <div class="dashboard-actions">
+                <button id="values-btn" class="btn btn-secondary">Values</button>
+                <button id="clear-stats-btn" class="btn btn-danger">Clear Stats</button>
+            </div>
+        </div>
+        <h1>📊 Token Usage Dashboard</h1>
+        <p class="dashboard-subtitle">
+            Track your translation token usage and estimated costs.
+            <span id="pricing-status" class="pricing-status"></span>
+        </p>
+    </header>
+
+    <div id="loading" style="text-align: center; padding: 40px;">
+        <p>Loading token usage data...</p>
+    </div>
+
+    <div id="dashboard-content" style="display: none;">
+
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+            <div class="stat-card stat-card-blue">
+                <h3>All Time</h3>
+                <div class="token-count" id="all-time-tokens">-</div>
+                <div class="token-detail">
+                    <span id="all-time-input">-</span> input / <span id="all-time-output">-</span> output
+                </div>
+            </div>
+            <div class="stat-card stat-card-orange">
+                <h3>This Month</h3>
+                <div class="token-count" style="color: #c05621;" id="month-tokens">-</div>
+                <div class="token-detail">
+                    <span id="month-input">-</span> input / <span id="month-output">-</span> output
+                </div>
+            </div>
+            <div class="stat-card stat-card-green">
+                <h3>This Week</h3>
+                <div class="token-count" style="color: #22543d;" id="week-tokens">-</div>
+                <div class="token-detail">
+                    <span id="week-input">-</span> input / <span id="week-output">-</span> output
+                </div>
+            </div>
+        </div>
+
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 30px;">
+
+            <div class="breakdown-card">
+                <h2>By Provider</h2>
+                <div id="provider-breakdown">
+                    <p style="color: var(--text-secondary);">Loading...</p>
+                </div>
+            </div>
+
+            <div class="breakdown-card">
+                <h2>By Model</h2>
+                <div id="model-breakdown">
+                    <p style="color: var(--text-secondary);">Loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="breakdown-card" style="margin-bottom: 30px;">
+            <h2>Daily Usage (Last 30 Days)</h2>
+            <div id="daily-chart" style="min-height: 200px;">
+                <p style="color: var(--text-secondary);">Loading chart data...</p>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <h3>ℹ️ How to Calculate Costs</h3>
+            <p>Token counts are provided so you can calculate costs using your provider's current pricing:</p>
+            <ul>
+                <li><strong>OpenRouter:</strong> Check <a href="https://openrouter.ai/models"
+                        target="_blank">openrouter.ai/models</a> for current pricing</li>
+                <li><strong>OpenAI:</strong> Check <a href="https://platform.openai.com/pricing"
+                        target="_blank">platform.openai.com/pricing</a> for current pricing</li>
+                <li><strong>Google Gemini:</strong> Check <a href="https://ai.google.dev/pricing"
+                        target="_blank">ai.google.dev/pricing</a> for current pricing</li>
+            </ul>
+            <p style="margin-bottom: 0;"><strong>Formula:</strong> Cost = (Input Tokens / 1,000,000 × Input Price) +
+                (Output Tokens / 1,000,000 × Output Price)</p>
+        </div>
+    </div>
+</div>
+
+<div id="values-modal" class="values-modal"
+    style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:1000;">
+    <div
+        style="background:var(--bg-secondary); max-width:720px; width:90%; border-radius:8px; padding:16px; border: 1px solid var(--border-light);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="margin:0; color: var(--text-primary);">Model Pricing Values</h3>
+            <button id="close-values-modal" class="close-btn" style="color: var(--text-primary);">&times;</button>
+        </div>
+        <p style="color:var(--text-secondary);">Enter per-model prices in <strong>USD per 1,000 tokens</strong>
+            (input/output). Add models you use and set input/output prices separately.</p>
+
+        <div id="values-list" style="max-height:360px; overflow:auto; margin-top:8px;">
+        </div>
+
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px;">
+            <button id="add-value-row" class="btn btn-secondary">+ Add Model</button>
+            <button id="save-values-btn" class="btn btn-primary">Save</button>
+            <button id="cancel-values-btn" class="btn btn-secondary">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
+<script>
+    function formatNumber(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    async function loadTokenUsageStats() {
+        try {
+            const response = await fetch('/api/token-usage/stats');
+            const data = await response.json();
+
+            if (data.success && data.stats) {
+                const stats = data.stats;
+
+                const pricingStatus = document.getElementById('pricing-status');
+                if (stats.model_costs && Object.values(stats.model_costs).some(c => c && c.pricing_available)) {
+                    pricingStatus.textContent = '✓ Automatic pricing available for OpenRouter models';
+                    pricingStatus.style.color = 'var(--success-color, #22543d)';
+                } else {
+                    pricingStatus.textContent = 'Cost estimates shown where pricing data is available';
+                    pricingStatus.style.color = 'var(--text-secondary)';
+                }
+
+                function formatCost(cost) {
+                    if (cost === null || cost === undefined) return null;
+                    if (cost < 0.01) return `$${cost.toFixed(4)}`;
+                    if (cost < 1) return `$${cost.toFixed(3)}`;
+                    return `$${cost.toFixed(2)}`;
+                }
+
+                if (stats.all_time) {
+                    document.getElementById('all-time-tokens').textContent = formatNumber(stats.all_time.total_tokens);
+                    document.getElementById('all-time-input').textContent = formatNumber(stats.all_time.total_input_tokens);
+                    document.getElementById('all-time-output').textContent = formatNumber(stats.all_time.total_output_tokens);
+                }
+
+                if (stats.this_month) {
+                    document.getElementById('month-tokens').textContent = formatNumber(stats.this_month.total_tokens);
+                    document.getElementById('month-input').textContent = formatNumber(stats.this_month.total_input_tokens);
+                    document.getElementById('month-output').textContent = formatNumber(stats.this_month.total_output_tokens);
+                }
+
+                if (stats.this_week) {
+                    document.getElementById('week-tokens').textContent = formatNumber(stats.this_week.total_tokens);
+                    document.getElementById('week-input').textContent = formatNumber(stats.this_week.total_input_tokens);
+                    document.getElementById('week-output').textContent = formatNumber(stats.this_week.total_output_tokens);
+                }
+
+                if (stats.by_provider) {
+                    const providerDiv = document.getElementById('provider-breakdown');
+                    providerDiv.innerHTML = '';
+
+                    const providers = Object.entries(stats.by_provider).sort((a, b) => b[1].total_tokens - a[1].total_tokens);
+
+                    if (providers.length === 0) {
+                        providerDiv.innerHTML = '<p style="color: var(--text-secondary);">No data available</p>';
+                    } else {
+                        providers.forEach(([provider, data]) => {
+                            const div = document.createElement('div');
+                            div.className = 'breakdown-item';
+                            div.innerHTML = `
+                                <div class="breakdown-header">
+                                    <strong>${provider.charAt(0).toUpperCase() + provider.slice(1)}</strong>
+                                    <span>${formatNumber(data.total_tokens)} tokens</span>
+                                </div>
+                                <div class="breakdown-details">
+                                    ${formatNumber(data.input_tokens)} input / ${formatNumber(data.output_tokens)} output
+                                    (${data.count} translations)
+                                </div>
+                            `;
+                            providerDiv.appendChild(div);
+                        });
+                    }
+                }
+
+                if (stats.by_model) {
+                    const modelDiv = document.getElementById('model-breakdown');
+                    modelDiv.innerHTML = '';
+
+                    const models = Object.entries(stats.by_model).sort((a, b) => b[1].total_tokens - a[1].total_tokens);
+                    const modelCosts = stats.model_costs || {};
+
+                    if (models.length === 0) {
+                        modelDiv.innerHTML = '<p style="color: var(--text-secondary);">No data available</p>';
+                    } else {
+
+                        function getLocalPricing(model) {
+                            try {
+                                const raw = localStorage.getItem('lf_model_pricing');
+                                if (!raw) return null;
+                                const obj = JSON.parse(raw);
+                                return obj[model] || obj['default'] || null;
+                            } catch (e) { return null; }
+                        }
+
+                        models.slice(0, 10).forEach(([model, data]) => {
+                            const div = document.createElement('div');
+                            div.className = 'breakdown-item';
+
+                            let costText = '';
+                            const costInfo = modelCosts[model];
+                            if (costInfo && costInfo.pricing_available && costInfo.total_cost !== null) {
+                                const cost = formatCost(costInfo.total_cost);
+                                if (cost) {
+                                    costText = `<div class="cost-estimate">Estimated Cost: ${cost}</div>`;
+                                }
+                            } else {
+
+                                const local = getLocalPricing(model);
+                                if (local) {
+                                    const inputPrice = parseFloat(local.input_per_1k) || 0;
+                                    const outputPrice = parseFloat(local.output_per_1k) || 0;
+                                    const inputCost = (data.input_tokens / 1000.0) * inputPrice;
+                                    const outputCost = (data.output_tokens / 1000.0) * outputPrice;
+                                    const totalCost = inputCost + outputCost;
+                                    costText = `<div class="cost-estimate">Estimated Cost: ${formatCost(totalCost)}</div>`;
+                                }
+                            }
+
+                            div.innerHTML = `
+                                <div class="breakdown-header">
+                                    <strong style="font-size: 0.9rem;">${model}</strong>
+                                    <span>${formatNumber(data.total_tokens)} tokens</span>
+                                </div>
+                                <div class="breakdown-details">
+                                    ${formatNumber(data.input_tokens)} input / ${formatNumber(data.output_tokens)} output
+                                    (${data.count} translations)
+                                </div>
+                                ${costText}
+                            `;
+                            modelDiv.appendChild(div);
+                        });
+                        if (models.length > 10) {
+                            const moreDiv = document.createElement('div');
+                            moreDiv.style.color = 'var(--text-secondary)';
+                            moreDiv.style.fontSize = '0.85rem';
+                            moreDiv.textContent = `... and ${models.length - 10} more models`;
+                            modelDiv.appendChild(moreDiv);
+                        }
+                    }
+                }
+
+                if (stats.recent_daily) {
+                    const chartDiv = document.getElementById('daily-chart');
+                    chartDiv.innerHTML = '';
+
+                    const days = Object.entries(stats.recent_daily).sort((a, b) => a[0].localeCompare(b[0]));
+
+                    if (days.length === 0) {
+                        chartDiv.innerHTML = '<p style="color: var(--text-secondary);">No data available</p>';
+                    } else {
+                        const maxTokens = Math.max(...days.map(([_, data]) => data.total_tokens));
+
+                        days.forEach(([date, data]) => {
+                            const bar = document.createElement('div');
+                            bar.className = 'chart-bar-container';
+                            const percentage = maxTokens > 0 ? (data.total_tokens / maxTokens) * 100 : 0;
+                            bar.innerHTML = `
+                                <div class="chart-date">${new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                                <div class="chart-bar-bg">
+                                    <div class="chart-bar-fill" style="width: ${percentage}%;"></div>
+                                    <div class="chart-bar-label">
+                                        ${formatNumber(data.total_tokens)} tokens
+                                    </div>
+                                </div>
+                            `;
+                            chartDiv.appendChild(bar);
+                        });
+                    }
+                }
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dashboard-content').style.display = 'block';
+            } else {
+                document.getElementById('loading').innerHTML = '<p style="color: #e53e3e;">Error loading token usage data</p>';
+            }
+        } catch (error) {
+            console.error('Error loading token usage:', error);
+            document.getElementById('loading').innerHTML = '<p style="color: #e53e3e;">Error loading token usage data</p>';
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadTokenUsageStats);
+    } else {
+        loadTokenUsageStats();
+    }
+
+    document.getElementById('clear-stats-btn').addEventListener('click', () => {
+        window.showConfirmationModal(
+            'Clear Statistics',
+            'Are you sure you want to clear ALL your token usage statistics? This action cannot be undone.',
+            async () => {
+                try {
+                    const response = await window.fetchWithCSRF('/api/token-usage/clear', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+
+                    if (data.success) {
+                        window.showAlertModal('Success', 'Statistics cleared successfully.', 'success');
+                        loadTokenUsageStats();
+                    } else {
+                        window.showAlertModal('Error', 'Failed to clear statistics: ' + (data.error || 'Unknown error'), 'error');
+                    }
+                } catch (error) {
+                    console.error('Error clearing stats:', error);
+                    window.showAlertModal('Error', 'Error clearing statistics. Please try again.', 'error');
+                }
+            },
+            'danger'
+        );
+    });
+</script>
+<script>
+
+    function createValueRow(modelName = '', inputPer1k = '', outputPer1k = '') {
+        const row = document.createElement('div');
+        row.className = 'value-row';
+        row.style.display = 'flex';
+        row.style.gap = '8px';
+        row.style.alignItems = 'center';
+        row.style.marginBottom = '8px';
+
+        row.innerHTML = `
+            <input class="value-model" placeholder="Model name (e.g. openai/gpt-4)" style="flex:2; padding:6px; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-light);" value="${modelName}" />
+            <input class="value-input" placeholder="Input $/1k" style="flex:1; padding:6px; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-light);" value="${inputPer1k}" />
+            <input class="value-output" placeholder="Output $/1k" style="flex:1; padding:6px; background: var(--bg-primary); color: var(--text-primary); border: 1px solid var(--border-light);" value="${outputPer1k}" />
+            <button class="remove-value-row btn btn-secondary" title="Remove" style="padding:6px 8px;">✖</button>
+        `;
+
+        row.querySelector('.remove-value-row').addEventListener('click', () => row.remove());
+        return row;
+    }
+
+    function openValuesModal() {
+        (async function () {
+            const list = document.getElementById('values-list');
+            if (!list) return;
+            list.innerHTML = '';
+
+            let pricing = {};
+
+            try {
+                const sresp = await fetch('/api/settings');
+                if (sresp.ok) {
+                    const sdata = await sresp.json();
+                    const avail = sdata.available_models || sdata.settings && sdata.settings.available_models || {};
+
+                    ['openai', 'google'].forEach(provider => {
+                        if (avail[provider]) {
+                            (avail[provider] || []).forEach(m => {
+                                if (!pricing[m]) pricing[m] = { input_per_1k: '', output_per_1k: '' };
+                            });
+                        }
+                    });
+                }
+            } catch (e) {
+                console.warn('Error fetching settings', e);
+            }
+
+            try {
+                const resp = await fetch('/api/pricing');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.success && data.pricing) {
+
+                        Object.keys(pricing).forEach(model => {
+                            if (data.pricing[model]) {
+                                pricing[model] = data.pricing[model];
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('Error fetching pricing', e);
+            }
+
+            Object.keys(pricing).forEach(model => {
+                const p = pricing[model] || {};
+                list.appendChild(createValueRow(model, p.input_per_1k || '', p.output_per_1k || ''));
+            });
+
+            document.getElementById('values-modal').style.display = 'flex';
+        })();
+    }
+
+    function closeValuesModal() {
+        document.getElementById('values-modal').style.display = 'none';
+    }
+
+    document.getElementById('values-btn').addEventListener('click', openValuesModal);
+    document.getElementById('close-values-modal').addEventListener('click', closeValuesModal);
+    document.getElementById('cancel-values-btn').addEventListener('click', closeValuesModal);
+
+    document.getElementById('add-value-row').addEventListener('click', () => {
+        const list = document.getElementById('values-list');
+        list.appendChild(createValueRow('', '', ''));
+    });
+
+    document.getElementById('save-values-btn').addEventListener('click', () => {
+        const rows = Array.from(document.querySelectorAll('#values-list .value-row'));
+        const obj = {};
+        rows.forEach(r => {
+            const model = r.querySelector('.value-model').value.trim();
+            const input = r.querySelector('.value-input').value.trim();
+            const output = r.querySelector('.value-output').value.trim();
+            if (model) {
+                obj[model] = { input_per_1k: input || '0', output_per_1k: output || '0' };
+            }
+        });
+        (async function () {
+            try {
+                await window.fetchWithCSRF('/api/pricing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(obj)
+                });
+            } catch (e) {
+                console.warn('Error saving pricing to server', e);
+            }
+
+            try {
+                localStorage.setItem('lf_model_pricing', JSON.stringify(obj));
+            } catch (e) {
+                console.warn('Error saving pricing locally', e);
+            }
+
+            closeValuesModal();
+
+            loadTokenUsageStats();
+        })();
+    });
+</script>
+{% endblock %}

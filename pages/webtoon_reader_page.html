@@ -1,0 +1,820 @@
+{% extends "base.html" %}
+
+{% block title %}{{ webtoon.title }} - Page {{ webtoon.current_chapter }} - LunaFrost Reader{% endblock %}
+
+{% block content %}
+<div class="reader-container">
+    
+    <div class="reader-nav">
+        <a href="/webtoon/{{ webtoon.job_id }}" class="nav-btn back-btn">
+            ← Back
+        </a>
+        <div class="title-section">
+            <h1 class="reader-title">{{ webtoon.title }}</h1>
+            <div class="page-indicator">
+                Page <span id="current-page">{{ webtoon.current_chapter }}</span> / <span id="total-pages">{{ webtoon.total_chapters }}</span>
+            </div>
+        </div>
+    </div>
+    
+    
+    <button class="floating-settings-btn" id="settings-btn" title="Settings">⚙️</button>
+    
+    
+    <div class="reader-main" id="reader-main">
+        
+        <div class="click-zone left-zone" id="prev-zone" title="Previous Page (←)"></div>
+        <div class="click-zone right-zone" id="next-zone" title="Next Page (→)"></div>
+        
+        
+        <div class="page-container" id="page-container">
+            {% if webtoon.images %}
+            <div class="image-wrapper" id="image-wrapper">
+                <img src="{{ webtoon.images[0].url }}" alt="Page {{ webtoon.current_chapter }}" 
+                     id="current-image" class="page-image"
+                     data-image-id="{{ webtoon.images[0].id }}">
+                
+                <div class="text-regions-container" id="text-regions-container"></div>
+            </div>
+            {% else %}
+            <div class="no-images">
+                <p>No images in this chapter</p>
+                <a href="/webtoon/{{ webtoon.job_id }}/upload" class="btn btn-primary">Upload Images</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    
+    <div class="reader-footer">
+        <button class="footer-btn" id="prev-btn" {% if not webtoon.has_prev %}disabled{% endif %}>
+            ← Previous
+        </button>
+        
+        <div class="page-selector">
+            <select id="page-select" class="page-dropdown">
+                {% for num in webtoon.chapter_numbers %}
+                <option value="{{ num }}" {% if num == webtoon.current_chapter %}selected{% endif %}>
+                    Page {{ num }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <button class="footer-btn" id="next-btn" {% if not webtoon.has_next %}disabled{% endif %}>
+            Next →
+        </button>
+    </div>
+    
+    
+    <div class="settings-panel" id="settings-panel" style="display: none;">
+        <div class="settings-content">
+            <h3>Reader Settings</h3>
+            
+            <div class="setting-item">
+                <label>Fit Mode</label>
+                <select id="fit-mode" class="form-control">
+                    <option value="auto" selected>Fit Width & Height</option>
+                    <option value="height">Fit Height</option>
+                    <option value="width">Fit Width</option>
+                    <option value="original">Original Size</option>
+                </select>
+            </div>
+            
+            <div class="setting-item">
+                <label>Background</label>
+                <select id="bg-color" class="form-control">
+                    <option value="#1a1a1a">Dark</option>
+                    <option value="#ffffff">Light</option>
+                    <option value="#000000">Black</option>
+                </select>
+            </div>
+            
+            <button class="btn btn-secondary" id="close-settings">Close</button>
+        </div>
+    </div>
+    
+    
+    <div id="translation-popup" style="display: none;"></div>
+    
+    
+    <div class="keyboard-hint" id="keyboard-hint">
+        <span>← → Arrow keys to navigate</span>
+        <span>Click on text to see translation</span>
+    </div>
+</div>
+
+<style>
+    .reader-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #1a1a1a;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    
+    .reader-nav {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 12px 20px;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 100;
+        flex-shrink: 0;
+        height: 60px;
+        box-sizing: border-box;
+        position: relative;
+    }
+    
+    .back-btn {
+        position: absolute;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+    
+    .nav-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 1rem;
+        transition: background 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .nav-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+    
+    .nav-btn:active {
+        transform: translateY(-50%);
+    }
+    
+    .title-section {
+        text-align: center;
+    }
+    
+    .reader-title {
+        font-size: 1.1rem;
+        color: white;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 500px;
+    }
+    
+    .page-indicator {
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 1rem;
+        margin-top: 4px;
+        font-weight: 600;
+    }
+    
+    .floating-settings-btn {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 1.3rem;
+        transition: all 0.2s;
+        z-index: 150;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .floating-settings-btn:hover {
+        background: rgba(99, 102, 241, 0.6);
+        transform: scale(1.1);
+    }
+    
+    .reader-main {
+        flex: 1 1 0;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        min-height: 0;
+        height: 0;
+    }
+    
+    .click-zone {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 25%;
+        cursor: pointer;
+        z-index: 5;
+    }
+    
+    .left-zone {
+        left: 0;
+    }
+    
+    .right-zone {
+        right: 0;
+    }
+    
+    .left-zone:hover {
+        background: linear-gradient(to right, rgba(255,255,255,0.05), transparent);
+    }
+    
+    .right-zone:hover {
+        background: linear-gradient(to left, rgba(255,255,255,0.05), transparent);
+    }
+    
+    .page-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1;
+        padding: 20px;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+    
+    .image-wrapper {
+        position: relative;
+        height: 100%;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .page-image {
+        max-height: 100%;
+        max-width: 100%;
+        height: auto;
+        width: auto;
+        object-fit: contain;
+        display: block;
+    }
+    
+    .page-image.fit-auto {
+        max-height: 100%;
+        max-width: 100%;
+        height: auto;
+        width: auto;
+        object-fit: contain;
+    }
+    
+    .page-image.fit-height {
+        height: 100%;
+        width: auto;
+        max-height: 100%;
+        max-width: none;
+    }
+    
+    .page-image.fit-width {
+        width: 100%;
+        height: auto;
+        max-width: 100%;
+        max-height: none;
+    }
+    
+    .page-image.fit-original {
+        max-height: none;
+        max-width: none;
+    }
+    
+    .text-regions-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 20;
+    }
+    
+    .text-region-clickable {
+        pointer-events: auto;
+        cursor: pointer;
+    }
+    
+    .no-images {
+        text-align: center;
+        color: white;
+    }
+    
+    .reader-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 20px;
+        background: rgba(0, 0, 0, 0.8);
+        z-index: 100;
+        flex-shrink: 0;
+        height: 60px;
+        box-sizing: border-box;
+    }
+    
+    .footer-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 1rem;
+        transition: all 0.2s;
+        min-width: 120px;
+    }
+    
+    .footer-btn:hover:not(:disabled) {
+        background: rgba(99, 102, 241, 0.6);
+    }
+    
+    .footer-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    
+    .page-selector {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .page-dropdown {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 1rem;
+    }
+    
+    .page-dropdown option {
+        background: #2a2a2a;
+        color: white;
+    }
+    
+    .settings-panel {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+    }
+    
+    .settings-content {
+        background: #2a2a2a;
+        padding: 30px;
+        border-radius: 12px;
+        min-width: 300px;
+    }
+    
+    .settings-content h3 {
+        color: white;
+        margin-bottom: 20px;
+    }
+    
+    .setting-item {
+        margin-bottom: 16px;
+    }
+    
+    .setting-item label {
+        display: block;
+        color: rgba(255, 255, 255, 0.8);
+        margin-bottom: 8px;
+    }
+    
+    .setting-item .form-control {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        padding: 10px;
+        border-radius: 6px;
+    }
+    
+    .keyboard-hint {
+        position: fixed;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.7);
+        padding: 8px 16px;
+        border-radius: 20px;
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.85rem;
+        display: flex;
+        gap: 16px;
+        opacity: 0;
+        transition: opacity 0.3s;
+        z-index: 50;
+    }
+    
+    .keyboard-hint.show {
+        opacity: 1;
+    }
+    
+    
+    #translation-popup {
+        position: fixed;
+        background: #2a2a2a;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        padding: 16px;
+        max-width: 400px;
+        max-height: 300px;
+        overflow-y: auto;
+        z-index: 1000;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+    
+    .popup-section {
+        margin-bottom: 12px;
+    }
+    
+    .popup-section:last-child {
+        margin-bottom: 0;
+    }
+    
+    .popup-label {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.5);
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+    
+    .popup-text {
+        color: white;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        padding-right: 30px;
+    }
+    
+    .popup-close {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 4px 8px;
+    }
+    
+    .popup-close:hover {
+        color: white;
+    }
+</style>
+
+<script>
+    const jobId = '{{ webtoon.job_id }}';
+    const sourceLanguage = '{{ webtoon.source_language or "korean" }}';
+    const chapterNumbers = {{ webtoon.chapter_numbers | tojson }};
+    let currentPage = {{ webtoon.current_chapter }};
+    const totalPages = {{ webtoon.total_chapters }};
+    const currentImageId = {{ webtoon.images[0].id if webtoon.images else 'null' }};
+    
+
+    let textRegionsData = null;
+    
+    const pageImage = document.getElementById('current-image');
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const prevZone = document.getElementById('prev-zone');
+    const nextZone = document.getElementById('next-zone');
+    const pageSelect = document.getElementById('page-select');
+    const currentPageEl = document.getElementById('current-page');
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsPanel = document.getElementById('settings-panel');
+    const closeSettings = document.getElementById('close-settings');
+    const keyboardHint = document.getElementById('keyboard-hint');
+    const textRegionsContainer = document.getElementById('text-regions-container');
+    
+
+    if (!localStorage.getItem('reader-hint-shown')) {
+        setTimeout(() => {
+            keyboardHint.classList.add('show');
+            setTimeout(() => {
+                keyboardHint.classList.remove('show');
+                localStorage.setItem('reader-hint-shown', 'true');
+            }, 3000);
+        }, 500);
+    }
+    
+
+    async function loadTextRegions() {
+        if (!currentImageId) return;
+        
+        try {
+            const response = await fetch(`/api/webtoon/job/${jobId}/image/${currentImageId}/data`);
+            if (response.ok) {
+                const data = await response.json();
+                textRegionsData = data;
+                
+
+                if (pageImage.complete) {
+                    createClickableRegions();
+                } else {
+                    pageImage.addEventListener('load', createClickableRegions, { once: true });
+                }
+            }
+        } catch (error) {
+            console.error('Error loading text regions:', error);
+        }
+    }
+    
+    function createClickableRegions() {
+        if (!textRegionsData || !textRegionsContainer || !pageImage) return;
+        
+        textRegionsContainer.innerHTML = '';
+        
+
+        let regions = textRegionsData.translated_regions || [];
+        const ocrRegions = textRegionsData.ocr_regions || [];
+        
+
+        const hasTranslations = regions.length > 0 && regions[0].hasOwnProperty('translatedText');
+        
+        if (!hasTranslations && ocrRegions.length > 0) {
+
+            regions = ocrRegions.map((ocr, idx) => ({
+                bbox: ocr.bbox,
+                originalText: ocr.text || '',
+                translatedText: (textRegionsData.translated_regions && textRegionsData.translated_regions[idx]) 
+                    ? (textRegionsData.translated_regions[idx].text || '') 
+                    : ''
+            }));
+        }
+        
+        if (regions.length === 0) {
+            console.log('No text regions to display');
+            return;
+        }
+        
+
+        const imageRect = pageImage.getBoundingClientRect();
+        const containerRect = textRegionsContainer.getBoundingClientRect();
+        
+        const scaleX = imageRect.width / pageImage.naturalWidth;
+        const scaleY = imageRect.height / pageImage.naturalHeight;
+        
+
+        const offsetX = imageRect.left - containerRect.left;
+        const offsetY = imageRect.top - containerRect.top;
+        
+
+        regions.forEach((region, idx) => {
+            const bbox = region.bbox;
+            if (!bbox || bbox.length < 4) return;
+            
+            const [x, y, width, height] = bbox;
+            
+            const displayX = (x * scaleX) + offsetX;
+            const displayY = (y * scaleY) + offsetY;
+            const displayWidth = width * scaleX;
+            const displayHeight = height * scaleY;
+            
+            const regionDiv = document.createElement('div');
+            regionDiv.className = 'text-region-clickable';
+            regionDiv.style.cssText = `
+                position: absolute;
+                left: ${displayX}px;
+                top: ${displayY}px;
+                width: ${displayWidth}px;
+                height: ${displayHeight}px;
+                cursor: pointer;
+                pointer-events: auto;
+                border: 2px solid transparent;
+                border-radius: 4px;
+                transition: all 0.2s ease;
+                z-index: 25;
+            `;
+            
+
+            regionDiv.addEventListener('mouseenter', function() {
+                this.style.borderColor = 'rgba(99, 102, 241, 0.8)';
+                this.style.backgroundColor = 'rgba(99, 102, 241, 0.2)';
+            });
+            
+            regionDiv.addEventListener('mouseleave', function() {
+                this.style.borderColor = 'transparent';
+                this.style.backgroundColor = 'transparent';
+            });
+            
+
+            regionDiv.addEventListener('click', function(e) {
+                e.stopPropagation();
+                showTranslationPopup(e.clientX, e.clientY, region.originalText || '', region.translatedText || '');
+            });
+            
+            textRegionsContainer.appendChild(regionDiv);
+        });
+        
+        console.log(`Created ${regions.length} clickable text regions`);
+    }
+    
+    function showTranslationPopup(x, y, originalText, translatedText) {
+        const popup = document.getElementById('translation-popup');
+        
+
+        let html = '<button class="popup-close" onclick="closeTranslationPopup()">×</button>';
+        
+        if (translatedText) {
+
+            const horizontalText = translatedText.replace(/\n+/g, ' ').trim();
+            html += `<div class="popup-text">${escapeHtml(horizontalText)}</div>`;
+        } else {
+            html += `<div class="popup-text" style="color: rgba(255,255,255,0.5); font-style: italic;">Not yet translated</div>`;
+        }
+        
+        popup.innerHTML = html;
+        popup.style.display = 'block';
+        
+
+        const popupRect = popup.getBoundingClientRect();
+        let posX = x + 10;
+        let posY = y + 10;
+        
+
+        if (posX + popupRect.width > window.innerWidth - 20) {
+            posX = x - popupRect.width - 10;
+        }
+        if (posY + popupRect.height > window.innerHeight - 20) {
+            posY = y - popupRect.height - 10;
+        }
+        
+        popup.style.left = Math.max(10, posX) + 'px';
+        popup.style.top = Math.max(10, posY) + 'px';
+    }
+    
+    function closeTranslationPopup() {
+        document.getElementById('translation-popup').style.display = 'none';
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+
+    document.addEventListener('click', function(e) {
+        const popup = document.getElementById('translation-popup');
+        if (popup.style.display !== 'none' && !popup.contains(e.target)) {
+            closeTranslationPopup();
+        }
+    });
+    
+
+    function goToPage(pageNum) {
+        if (pageNum < Math.min(...chapterNumbers) || pageNum > Math.max(...chapterNumbers)) return;
+        if (!chapterNumbers.includes(pageNum)) return;
+        
+        window.location.href = `/webtoon/${jobId}/read/${pageNum}`;
+    }
+    
+    function prevPage() {
+        const currentIdx = chapterNumbers.indexOf(currentPage);
+        if (currentIdx > 0) {
+            goToPage(chapterNumbers[currentIdx - 1]);
+        }
+    }
+    
+    function nextPage() {
+        const currentIdx = chapterNumbers.indexOf(currentPage);
+        if (currentIdx < chapterNumbers.length - 1) {
+            goToPage(chapterNumbers[currentIdx + 1]);
+        }
+    }
+    
+
+    prevBtn.addEventListener('click', prevPage);
+    nextBtn.addEventListener('click', nextPage);
+    prevZone.addEventListener('click', prevPage);
+    nextZone.addEventListener('click', nextPage);
+    
+    pageSelect.addEventListener('change', (e) => {
+        goToPage(parseInt(e.target.value));
+    });
+    
+
+    document.addEventListener('keydown', (e) => {
+
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+        
+        switch(e.key) {
+            case 'ArrowLeft':
+                prevPage();
+                e.preventDefault();
+                break;
+            case 'ArrowRight':
+                nextPage();
+                e.preventDefault();
+                break;
+            case 'Home':
+                goToPage(Math.min(...chapterNumbers));
+                e.preventDefault();
+                break;
+            case 'End':
+                goToPage(Math.max(...chapterNumbers));
+                e.preventDefault();
+                break;
+            case 'Escape':
+                closeTranslationPopup();
+                settingsPanel.style.display = 'none';
+                break;
+        }
+    });
+    
+
+    settingsBtn.addEventListener('click', () => {
+        settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'flex' : 'none';
+    });
+    
+    closeSettings.addEventListener('click', () => {
+        settingsPanel.style.display = 'none';
+    });
+    
+
+    document.getElementById('fit-mode').addEventListener('change', (e) => {
+        const image = document.getElementById('current-image');
+        image.classList.remove('fit-auto', 'fit-height', 'fit-width', 'fit-original');
+        
+        switch(e.target.value) {
+            case 'auto':
+                image.classList.add('fit-auto');
+                break;
+            case 'height':
+                image.classList.add('fit-height');
+                break;
+            case 'width':
+                image.classList.add('fit-width');
+                break;
+            case 'original':
+                image.classList.add('fit-original');
+                break;
+        }
+        
+        localStorage.setItem('reader-fit-mode', e.target.value);
+        
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                createClickableRegions();
+            });
+        });
+    });
+    
+
+    document.getElementById('bg-color').addEventListener('change', (e) => {
+        document.getElementById('reader-main').style.background = e.target.value;
+        localStorage.setItem('reader-bg-color', e.target.value);
+    });
+    
+
+    const savedFitMode = localStorage.getItem('reader-fit-mode') || 'auto';
+    document.getElementById('fit-mode').value = savedFitMode;
+    document.getElementById('fit-mode').dispatchEvent(new Event('change'));
+    
+    const savedBgColor = localStorage.getItem('reader-bg-color');
+    if (savedBgColor) {
+        document.getElementById('bg-color').value = savedBgColor;
+        document.getElementById('bg-color').dispatchEvent(new Event('change'));
+    }
+    
+
+    window.addEventListener('resize', () => {
+        createClickableRegions();
+    });
+    
+
+    loadTextRegions();
+</script>
+{% endblock %}

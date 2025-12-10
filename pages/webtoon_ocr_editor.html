@@ -1,0 +1,1473 @@
+{% extends "base.html" %}
+
+{% block title %}Edit OCR - {{ image.original_filename }} - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<style>
+    
+    #user-menu {
+        display: none !important;
+    }
+</style>
+<style>
+    .ocr-editor-container {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px);
+        background: #1a1a2e;
+    }
+
+    .editor-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 20px;
+        background: #16213e;
+        border-bottom: 1px solid #0f3460;
+    }
+
+    .editor-header h2 {
+        margin: 0;
+        color: #e94560;
+        font-size: 1.2rem;
+    }
+
+    .editor-main {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: auto;
+        padding: 20px;
+        position: relative;
+    }
+
+    .canvas-container {
+        position: relative;
+        display: inline-block;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+    }
+
+    .canvas-container img {
+        display: block;
+        max-width: 100%;
+        max-height: calc(100vh - 200px);
+        height: auto;
+    }
+
+    .canvas-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        cursor: crosshair;
+    }
+
+    .editor-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 20px;
+        background: #16213e;
+        border-top: 1px solid #0f3460;
+    }
+
+    .footer-buttons {
+        display: flex;
+        gap: 15px;
+    }
+
+    .editor-footer .btn {
+        padding: 10px 25px;
+        font-size: 1rem;
+    }
+
+    .legend {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: #a0aec0;
+        font-size: 0.85rem;
+    }
+
+    .legend-color {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        border: 2px solid;
+    }
+
+    .legend-color.auto {
+        background: rgba(59, 130, 246, 0.3);
+        border-color: #3b82f6;
+    }
+
+    .legend-color.manual {
+        background: rgba(34, 197, 94, 0.3);
+        border-color: #22c55e;
+    }
+
+    .legend-color.selected {
+        background: rgba(239, 68, 68, 0.3);
+        border-color: #ef4444;
+    }
+
+    .delete-popup {
+        position: absolute;
+        background: #1a1a2e;
+        border: 2px solid #ef4444;
+        border-radius: 8px;
+        padding: 10px;
+        z-index: 200;
+        display: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    .delete-popup button {
+        background: #ef4444;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+    }
+
+    .delete-popup button:hover {
+        background: #dc2626;
+    }
+
+    .instructions {
+        color: #a0aec0;
+        font-size: 0.85rem;
+    }
+
+    .box-count {
+        color: #a0aec0;
+        font-size: 0.9rem;
+    }
+
+    
+    .typeset-container {
+        margin-top: 24px;
+        background: #0f172a;
+        border: 1px solid #1e293b;
+        border-radius: 10px;
+        padding: 16px;
+        color: #e2e8f0;
+    }
+
+    .typeset-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 10px;
+    }
+
+    .typeset-controls {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .typeset-panel {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+    }
+
+    .typeset-left,
+    .typeset-right {
+        background: #111827;
+        border: 1px solid #1e293b;
+        border-radius: 8px;
+        padding: 12px;
+    }
+
+    .typeset-list {
+        max-height: 320px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .typeset-entry {
+        border: 1px solid #1e293b;
+        border-radius: 8px;
+        padding: 10px;
+        background: #0b1220;
+    }
+
+    .typeset-entry h4 {
+        margin: 0 0 6px 0;
+        font-size: 0.95rem;
+        color: #cbd5e1;
+    }
+
+    .typeset-entry label {
+        display: block;
+        font-size: 0.85rem;
+        color: #94a3b8;
+        margin-top: 6px;
+    }
+
+    .typeset-entry input[type="text"],
+    .typeset-entry textarea,
+    .typeset-entry select,
+    .typeset-entry input[type="number"],
+    .typeset-entry input[type="color"] {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid #1e293b;
+        border-radius: 6px;
+        background: #0f172a;
+        color: #e2e8f0;
+    }
+
+    .typeset-entry textarea {
+        min-height: 60px;
+        resize: vertical;
+    }
+
+    .typeset-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    .typeset-preview {
+        margin-top: 10px;
+        font-size: 0.9rem;
+        color: #94a3b8;
+    }
+
+    .typeset-canvas-wrap {
+        position: relative;
+        display: inline-block;
+    }
+
+    .typeset-draw-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+    }
+
+    .typeset-tools {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+    }
+
+    .typeset-tools label {
+        font-size: 0.85rem;
+        color: #cbd5e1;
+    }
+</style>
+
+<div class="ocr-editor-container">
+    <div class="editor-header">
+        <a href="/webtoon/{{ webtoon.job_id }}" class="btn btn-secondary">← Back</a>
+        <h2>Edit OCR Boxes - {{ image.original_filename }}</h2>
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <span class="box-count">
+                <span id="auto-count">0</span> auto + <span id="manual-count">0</span> manual boxes
+            </span>
+            <span style="color: #a0aec0; font-size: 0.85rem;">
+                OCR Method: <strong style="color: #3b82f6;">{{ webtoon.ocr_method|upper if webtoon.ocr_method else
+                    'GOOGLE' }}</strong>
+            </span>
+        </div>
+    </div>
+
+    <div class="editor-main">
+        <div class="canvas-container" id="canvas-container">
+            <img id="editor-image" src="{{ image.url }}" alt="{{ image.original_filename }}">
+            <canvas id="ocr-canvas" class="canvas-overlay"></canvas>
+        </div>
+
+        <div class="delete-popup" id="delete-popup">
+            <button onclick="deleteSelectedBox()">🗑️ Delete Box</button>
+        </div>
+
+    </div>
+
+    <div class="editor-footer">
+        <span class="instructions">
+            <strong>Click</strong> on a box to select/delete it | <strong>Click + Drag</strong> on empty area to draw
+            new box | <strong>Ctrl + Drag</strong> to draw a red box that deletes any boxes it covers
+        </span>
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color auto"></div>
+                <span>Auto-detected</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color manual"></div>
+                <span>Manual</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color selected"></div>
+                <span>Selected</span>
+            </div>
+        </div>
+        <div class="footer-buttons">
+            <div id="normal-mode-controls" style="display: flex; gap: 8px; align-items: center;">
+                <select id="clean-method"
+                    style="padding: 8px 12px; border-radius: 6px; background: #1e293b; color: #e2e8f0; border: 1px solid #334155;">
+                    <option value="opencv">OpenCV (Fast)</option>
+                    <option value="lama">LAMA (Quality)</option>
+                </select>
+                <button class="btn btn-warning" onclick="cleanText(false)" id="clean-btn">🧹 Clean Text</button>
+                <button class="btn btn-success" onclick="cleanText(true)" id="clean-typeset-btn">🧹✍️ Clean &
+                    Typeset</button>
+                <button class="btn btn-primary" onclick="rescanOCR()" id="rescan-btn">🔍 Rescan Image Text</button>
+            </div>
+            
+            <div id="add-text-controls" style="display: none; gap: 8px; align-items: center;">
+                <button class="btn btn-info" onclick="toggleAddTextMode()" id="add-text-mode-btn">✍️ Add Text
+                    Mode</button>
+                <button class="btn btn-success" onclick="saveTextBoxes()" id="save-text-btn">💾 Save Text</button>
+                <button class="btn btn-secondary" onclick="exitAddTextMode()">🔙 Back</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="text-options-panel"
+    style="display: none; position: fixed; top: 100px; right: 20px; background: #1e293b; border: 1px solid #475569; border-radius: 12px; padding: 16px; z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,0.5); min-width: 220px;">
+    <h4 style="margin: 0 0 12px 0; color: #e2e8f0; font-size: 14px;">📝 Text Options</h4>
+    <div style="margin-bottom: 12px;">
+        <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Font Size</label>
+        <select id="text-font-size"
+            style="width: 100%; padding: 8px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0;">
+            <option value="12">12px</option>
+            <option value="14">14px</option>
+            <option value="16">16px</option>
+            <option value="18">18px</option>
+            <option value="20">20px</option>
+            <option value="24" selected>24px</option>
+            <option value="28">28px</option>
+            <option value="32">32px</option>
+            <option value="36">36px</option>
+            <option value="42">42px</option>
+            <option value="48">48px</option>
+        </select>
+    </div>
+    <div style="margin-bottom: 12px;">
+        <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Font Color</label>
+        <input type="color" id="text-font-color" value="#000000"
+            style="width: 100%; height: 36px; border: none; border-radius: 6px; cursor: pointer;">
+    </div>
+    <div style="margin-bottom: 12px;">
+        <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Stroke Color</label>
+        <input type="color" id="text-stroke-color" value="#FFFFFF"
+            style="width: 100%; height: 36px; border: none; border-radius: 6px; cursor: pointer;">
+    </div>
+    <div style="margin-bottom: 8px;">
+        <label style="color: #94a3b8; font-size: 12px; display: block; margin-bottom: 4px;">Stroke Width</label>
+        <input type="range" id="text-stroke-width" min="0" max="5" value="2" style="width: 100%;">
+        <span id="stroke-width-display" style="color: #e2e8f0; font-size: 12px;">2px</span>
+    </div>
+    <div style="color: #64748b; font-size: 11px; margin-top: 12px; padding-top: 8px; border-top: 1px solid #334155;">
+        💡 Click on image to place text
+    </div>
+</div>
+
+</div> 
+
+<div id="translation-ref-panel"
+    style="display: none; position: fixed; top: 100px; left: 20px; background: #1e293b; border: 1px solid #475569; border-radius: 12px; padding: 16px; z-index: 1000; box-shadow: 0 4px 20px rgba(0,0,0,0.5); max-width: 320px; max-height: 60vh; overflow-y: auto;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h4 style="margin: 0; color: #e2e8f0; font-size: 14px;">📖 Reference Text</h4>
+        <div style="display: flex; gap: 4px;">
+            <button id="show-korean-btn" class="btn btn-sm"
+                style="padding: 4px 8px; font-size: 11px; background: #334155; border: none; color: #94a3b8; border-radius: 4px;"
+                onclick="toggleKoreanText()">🇰🇷 Korean</button>
+            <button id="show-english-btn" class="btn btn-sm"
+                style="padding: 4px 8px; font-size: 11px; background: #6366f1; border: none; color: white; border-radius: 4px;"
+                onclick="toggleEnglishText()">🇺🇸 English</button>
+        </div>
+    </div>
+    <div id="translation-ref-content" style="color: #94a3b8; font-size: 13px;">
+        Loading translations...
+    </div>
+    <div style="color: #64748b; font-size: 11px; margin-top: 12px; padding-top: 8px; border-top: 1px solid #334155;">
+        💡 <b>Ctrl+Click</b> to add text • <b>Drag</b> to move
+    </div>
+</div>
+
+<script>
+
+    const jobId = '{{ webtoon.job_id }}';
+    const imageId = {{ image.id }};
+    const originalOcrData = {{ ocr_data | tojson | safe }};
+
+    let autoBoxes = [];
+    let manualBoxes = [];
+    let selectedBox = null;
+    let selectedBoxType = null;
+    let selectedBoxIndex = null;
+
+    let isDrawing = false;
+    let isDeleteMode = false;
+    let startX = 0;
+    let startY = 0;
+    let currentX = 0;
+    let currentY = 0;
+
+    const img = document.getElementById('editor-image');
+    const canvas = document.getElementById('ocr-canvas');
+    const ctx = canvas.getContext('2d');
+    const deletePopup = document.getElementById('delete-popup');
+    const canvasContainer = document.getElementById('canvas-container');
+
+    img.onload = function () {
+        initCanvas();
+        loadOriginalBoxes();
+    };
+
+    if (img.complete) {
+        initCanvas();
+        loadOriginalBoxes();
+    }
+
+    function initCanvas() {
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.style.width = img.clientWidth + 'px';
+        canvas.style.height = img.clientHeight + 'px';
+    }
+
+    function loadOriginalBoxes() {
+        autoBoxes = [];
+        manualBoxes = [];
+        const hasBubbleGroups = !!(originalOcrData && originalOcrData.bubble_groups && originalOcrData.bubble_groups.length);
+
+        if (hasBubbleGroups) {
+
+            const regions = (originalOcrData && originalOcrData.regions) || [];
+            originalOcrData.bubble_groups.forEach(group => {
+                if (group.bbox) {
+                    let text = '';
+                    if (group.region_indices && regions.length) {
+                        text = group.region_indices
+                            .map(idx => regions[idx] && regions[idx].text ? regions[idx].text : '')
+                            .filter(Boolean)
+                            .join('\n');
+                    }
+                    autoBoxes.push({
+                        x: group.bbox[0],
+                        y: group.bbox[1],
+                        w: group.bbox[2],
+                        h: group.bbox[3],
+                        text
+                    });
+                }
+            });
+        } else if (originalOcrData && originalOcrData.regions) {
+
+            originalOcrData.regions.forEach(region => {
+                if (region.bbox) {
+                    autoBoxes.push({
+                        x: region.bbox[0],
+                        y: region.bbox[1],
+                        w: region.bbox[2],
+                        h: region.bbox[3],
+                        text: region.text || ''
+                    });
+                }
+            });
+        }
+
+        updateCounts();
+        drawBoxes();
+    }
+
+    function updateCounts() {
+        document.getElementById('auto-count').textContent = autoBoxes.length;
+        document.getElementById('manual-count').textContent = manualBoxes.length;
+    }
+
+    function drawBoxes() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        autoBoxes.forEach((box, index) => {
+            const isSelected = selectedBoxType === 'auto' && selectedBoxIndex === index;
+            drawBox(box, isSelected ? '#ef4444' : '#3b82f6', isSelected);
+        });
+
+        manualBoxes.forEach((box, index) => {
+            const isSelected = selectedBoxType === 'manual' && selectedBoxIndex === index;
+            drawBox(box, isSelected ? '#ef4444' : '#22c55e', isSelected);
+        });
+
+        if (isDrawing) {
+            const x = Math.min(startX, currentX);
+            const y = Math.min(startY, currentY);
+            const w = Math.abs(currentX - startX);
+            const h = Math.abs(currentY - startY);
+
+            const strokeColor = isDeleteMode ? '#ef4444' : '#22c55e';
+            const fillColor = isDeleteMode ? 'rgba(239, 68, 68, 0.18)' : 'rgba(34, 197, 94, 0.2)';
+
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(x, y, w, h);
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = fillColor;
+            ctx.fillRect(x, y, w, h);
+        }
+    }
+
+    function drawBox(box, color, isSelected) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = isSelected ? 4 : 3;
+        ctx.strokeRect(box.x, box.y, box.w, box.h);
+
+        ctx.fillStyle = color.replace(')', ', 0.2)').replace('rgb', 'rgba');
+        if (color.startsWith('#')) {
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.2)`;
+        }
+        ctx.fillRect(box.x, box.y, box.w, box.h);
+    }
+
+    function getMousePos(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    function findBoxAtPoint(x, y) {
+
+        for (let i = manualBoxes.length - 1; i >= 0; i--) {
+            const box = manualBoxes[i];
+            if (x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h) {
+                return { type: 'manual', index: i, box: box };
+            }
+        }
+
+        for (let i = autoBoxes.length - 1; i >= 0; i--) {
+            const box = autoBoxes[i];
+            if (x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h) {
+                return { type: 'auto', index: i, box: box };
+            }
+        }
+
+        return null;
+    }
+
+    function showDeletePopup(x, y) {
+        const rect = canvasContainer.getBoundingClientRect();
+        const canvasRect = canvas.getBoundingClientRect();
+
+        const scaleX = canvasRect.width / canvas.width;
+        const scaleY = canvasRect.height / canvas.height;
+
+        const screenX = x * scaleX;
+        const screenY = y * scaleY;
+
+        deletePopup.style.display = 'block';
+        deletePopup.style.left = (screenX + 10) + 'px';
+        deletePopup.style.top = (screenY + 10) + 'px';
+    }
+
+    function hideDeletePopup() {
+        deletePopup.style.display = 'none';
+        selectedBox = null;
+        selectedBoxType = null;
+        selectedBoxIndex = null;
+
+        if (!addTextModeActive) {
+            drawBoxes();
+        }
+    }
+
+    function deleteSelectedBox() {
+        if (selectedBoxType === 'auto' && selectedBoxIndex !== null) {
+            autoBoxes.splice(selectedBoxIndex, 1);
+        } else if (selectedBoxType === 'manual' && selectedBoxIndex !== null) {
+            manualBoxes.splice(selectedBoxIndex, 1);
+        }
+
+        hideDeletePopup();
+        updateCounts();
+        drawBoxes();
+    }
+
+    canvas.addEventListener('mousedown', function (e) {
+
+        if (addTextModeActive) return;
+
+        const pos = getMousePos(e);
+        const found = findBoxAtPoint(pos.x, pos.y);
+        isDeleteMode = e.ctrlKey || e.metaKey;
+
+        if (!isDeleteMode && found) {
+
+            selectedBox = found.box;
+            selectedBoxType = found.type;
+            selectedBoxIndex = found.index;
+            drawBoxes();
+            showDeletePopup(pos.x, pos.y);
+        } else {
+
+            hideDeletePopup();
+            isDrawing = true;
+            startX = pos.x;
+            startY = pos.y;
+            currentX = pos.x;
+            currentY = pos.y;
+        }
+    });
+
+    canvas.addEventListener('mousemove', function (e) {
+        if (isDrawing) {
+            const pos = getMousePos(e);
+            currentX = pos.x;
+            currentY = pos.y;
+            drawBoxes();
+        }
+    });
+
+    document.addEventListener('mousemove', function (e) {
+        if (isDrawing) {
+            const pos = getMousePosFromDocument(e);
+            currentX = pos.x;
+            currentY = pos.y;
+            drawBoxes();
+        }
+    });
+
+    function getMousePosFromDocument(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    function clampToCanvas(x, y, w, h) {
+
+        let newX = Math.max(0, Math.min(x, canvas.width));
+        let newY = Math.max(0, Math.min(y, canvas.height));
+
+        let newW = w;
+        let newH = h;
+
+        if (newX + newW > canvas.width) {
+            newW = canvas.width - newX;
+        }
+
+        if (newY + newH > canvas.height) {
+            newH = canvas.height - newY;
+        }
+
+        return { x: newX, y: newY, w: newW, h: newH };
+    }
+
+    function finalizeDrawing() {
+        if (!isDrawing) return;
+
+        isDrawing = false;
+
+        let x = Math.min(startX, currentX);
+        let y = Math.min(startY, currentY);
+        let w = Math.abs(currentX - startX);
+        let h = Math.abs(currentY - startY);
+
+        const clamped = clampToCanvas(x, y, w, h);
+        x = clamped.x;
+        y = clamped.y;
+        w = clamped.w;
+        h = clamped.h;
+
+        if (w > 10 && h > 10) {
+            const newBox = {
+                x: Math.round(x),
+                y: Math.round(y),
+                w: Math.round(w),
+                h: Math.round(h),
+                text: ''
+            };
+
+            if (isDeleteMode) {
+
+                const removeAuto = [];
+                const removeManual = [];
+
+                autoBoxes.forEach((box, index) => {
+                    if (boxesIntersect(box, newBox)) {
+                        removeAuto.push(index);
+                    }
+                });
+                manualBoxes.forEach((box, index) => {
+                    if (boxesIntersect(box, newBox)) {
+                        removeManual.push(index);
+                    }
+                });
+
+                removeAuto.reverse().forEach(i => autoBoxes.splice(i, 1));
+                removeManual.reverse().forEach(i => manualBoxes.splice(i, 1));
+
+                const removedCount = removeAuto.length + removeManual.length;
+                if (removedCount > 0) {
+                    console.log(`🧹 Deleted ${removedCount} box(es) with red delete box`);
+                }
+                updateCounts();
+            } else {
+
+                const boxesToRemove = [];
+                autoBoxes.forEach((autoBox, index) => {
+                    if (isBoxInside(autoBox, newBox)) {
+                        boxesToRemove.push(index);
+                    }
+                });
+
+                boxesToRemove.reverse().forEach(index => {
+                    autoBoxes.splice(index, 1);
+                });
+
+                if (boxesToRemove.length > 0) {
+                    console.log(`Auto-deleted ${boxesToRemove.length} blue boxes inside new green box`);
+                }
+
+                manualBoxes.push(newBox);
+                updateCounts();
+            }
+        }
+
+        isDeleteMode = false;
+
+        drawBoxes();
+    }
+
+    canvas.addEventListener('mouseup', function (e) {
+        finalizeDrawing();
+    });
+
+    document.addEventListener('mouseup', function (e) {
+        if (isDrawing) {
+            finalizeDrawing();
+        }
+    });
+
+    function isBoxInside(inner, outer) {
+        return inner.x >= outer.x &&
+            inner.y >= outer.y &&
+            (inner.x + inner.w) <= (outer.x + outer.w) &&
+            (inner.y + inner.h) <= (outer.y + outer.h);
+    }
+
+    function boxesIntersect(a, b) {
+        return (
+            a.x < b.x + b.w &&
+            a.x + a.w > b.x &&
+            a.y < b.y + b.h &&
+            a.y + a.h > b.y
+        );
+    }
+
+    canvas.addEventListener('mouseleave', function (e) {
+
+    });
+
+    document.addEventListener('click', function (e) {
+        if (!deletePopup.contains(e.target) && e.target !== canvas) {
+            hideDeletePopup();
+        }
+    });
+
+    async function rescanOCR() {
+        const allBoxes = [...autoBoxes, ...manualBoxes];
+
+        if (allBoxes.length === 0) {
+
+            if (confirm('No boxes are selected. Do you want to run a full Auto-Detection to merge nearby text? This will replace all current boxes.')) {
+
+            } else {
+                return;
+            }
+        }
+
+        const btn = document.getElementById('rescan-btn');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Scanning...';
+
+        try {
+            const response = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/rescan-ocr`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    boxes: allBoxes.map(box => [box.x, box.y, box.w, box.h])
+                })
+            });
+
+            const responseText = await response.text();
+            let result;
+
+            try {
+                result = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error('Failed to parse response:', responseText.substring(0, 500));
+                throw new Error('Server returned an invalid response. Please check the server logs.');
+            }
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to rescan OCR');
+            }
+
+            window.showAlertModal('OCR Complete', `OCR rescan complete! Found ${result.regions_count || 0} text regions.`, 'success');
+
+            window.location.href = `/webtoon/${jobId}`;
+
+        } catch (error) {
+            console.error('Error rescanning OCR:', error);
+            window.showAlertModal('Error', error.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = '🔍 Rescan Image Text';
+        }
+    }
+
+    window.addEventListener('resize', function () {
+        canvas.style.width = img.clientWidth + 'px';
+        canvas.style.height = img.clientHeight + 'px';
+    });
+
+    async function cleanText(doTypeset = false) {
+        const allBoxes = [...autoBoxes, ...manualBoxes];
+
+        if (allBoxes.length === 0) {
+            window.showAlertModal('No Boxes', 'Please add at least one OCR box to clean.', 'error');
+            return;
+        }
+
+        const method = document.getElementById('clean-method').value;
+        const btn = doTypeset ? document.getElementById('clean-typeset-btn') : document.getElementById('clean-btn');
+        const originalText = btn.innerHTML;
+
+        btn.disabled = true;
+        if (doTypeset) {
+            btn.innerHTML = method === 'lama' ? '⏳ Processing (LAMA)...' : '⏳ Processing...';
+        } else {
+            btn.innerHTML = method === 'lama' ? '⏳ Cleaning (LAMA ~5s)...' : '⏳ Cleaning...';
+        }
+
+        try {
+            const response = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/clean-text`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    method: method,
+                    regions: allBoxes.map(box => ({ bbox: [box.x, box.y, box.w, box.h] })),
+                    typeset: doTypeset
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to clean text');
+            }
+
+            const methodLabel = method === 'lama' ? 'LAMA' : 'OpenCV';
+            const actionLabel = doTypeset ? 'cleaned & typeset' : 'cleaned';
+            const typesetNote = result.typeset_applied ? ` (${result.typeset_count || 0} text regions added)` : '';
+
+            if (!doTypeset) {
+                window.showAlertModal(
+                    'Text Cleaned',
+                    `Successfully ${actionLabel} ${result.regions_cleaned} text regions using ${methodLabel} in ${result.processing_time}s. You can now add text manually.`,
+                    'success'
+                );
+
+                document.getElementById('add-text-controls').style.display = 'flex';
+
+                if (result.cleaned_url) {
+                    img.src = result.cleaned_url + '?t=' + Date.now();
+                }
+
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            } else {
+                window.showAlertModal(
+                    'Clean & Typeset Complete',
+                    `Successfully ${actionLabel} ${result.regions_cleaned} text regions using ${methodLabel} in ${result.processing_time}s.${typesetNote} Reloading...`,
+                    'success'
+                );
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            }
+
+        } catch (error) {
+            console.error('Error cleaning text:', error);
+            window.showAlertModal('Error', error.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    let addTextModeActive = false;
+    let manualTextBoxes = [];
+    let activeTextBox = null;
+    let textBoxIdCounter = 0;
+
+    function toggleAddTextMode() {
+        addTextModeActive = !addTextModeActive;
+        const btn = document.getElementById('add-text-mode-btn');
+        const optionsPanel = document.getElementById('text-options-panel');
+        const translationPanel = document.getElementById('translation-ref-panel');
+        const normalControls = document.getElementById('normal-mode-controls');
+
+        if (addTextModeActive) {
+            btn.classList.remove('btn-info');
+            btn.classList.add('btn-danger');
+            btn.innerHTML = '❌ Exit Add Text Mode';
+            optionsPanel.style.display = 'block';
+            translationPanel.style.display = 'block';
+            if (normalControls) normalControls.style.display = 'none';
+            canvas.style.cursor = 'crosshair';
+
+            hideDeletePopup();
+            selectedBox = null;
+            selectedBoxType = null;
+            selectedBoxIndex = null;
+            isDrawing = false;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            canvas.addEventListener('click', handleCanvasClickForText);
+
+            canvas.addEventListener('mousedown', handleTextBoxDragStart);
+            canvas.addEventListener('mousemove', handleTextBoxDragMove);
+            canvas.addEventListener('mouseup', handleTextBoxDragEnd);
+
+            loadTranslationsForReference();
+        } else {
+            btn.classList.remove('btn-danger');
+            btn.classList.add('btn-info');
+            btn.innerHTML = '✍️ Add Text Mode';
+            optionsPanel.style.display = 'none';
+            translationPanel.style.display = 'none';
+            if (normalControls) normalControls.style.display = 'flex';
+            canvas.style.cursor = 'default';
+
+            drawBoxes();
+
+            canvas.removeEventListener('click', handleCanvasClickForText);
+            canvas.removeEventListener('mousedown', handleTextBoxDragStart);
+            canvas.removeEventListener('mousemove', handleTextBoxDragMove);
+            canvas.removeEventListener('mouseup', handleTextBoxDragEnd);
+        }
+    }
+
+    function exitAddTextMode() {
+        addTextModeActive = false;
+        const btn = document.getElementById('add-text-mode-btn');
+        const optionsPanel = document.getElementById('text-options-panel');
+        const translationPanel = document.getElementById('translation-ref-panel');
+        const normalControls = document.getElementById('normal-mode-controls');
+        const addTextControls = document.getElementById('add-text-controls');
+
+        btn.classList.remove('btn-danger');
+        btn.classList.add('btn-info');
+        btn.innerHTML = '✍️ Add Text Mode';
+        optionsPanel.style.display = 'none';
+        translationPanel.style.display = 'none';
+        if (normalControls) normalControls.style.display = 'flex';
+        if (addTextControls) addTextControls.style.display = 'none';
+        canvas.style.cursor = 'default';
+
+        drawBoxes();
+
+        canvas.removeEventListener('click', handleCanvasClickForText);
+        canvas.removeEventListener('mousedown', handleTextBoxDragStart);
+        canvas.removeEventListener('mousemove', handleTextBoxDragMove);
+        canvas.removeEventListener('mouseup', handleTextBoxDragEnd);
+    }
+
+    let referenceData = { translatedRegions: [], ocrRegions: [] };
+    let showingKorean = false;
+
+    function toggleKoreanText() {
+        showingKorean = true;
+        document.getElementById('show-korean-btn').style.background = '#6366f1';
+        document.getElementById('show-korean-btn').style.color = 'white';
+        document.getElementById('show-english-btn').style.background = '#334155';
+        document.getElementById('show-english-btn').style.color = '#94a3b8';
+        displayReferenceText();
+    }
+
+    function toggleEnglishText() {
+        showingKorean = false;
+        document.getElementById('show-english-btn').style.background = '#6366f1';
+        document.getElementById('show-english-btn').style.color = 'white';
+        document.getElementById('show-korean-btn').style.background = '#334155';
+        document.getElementById('show-korean-btn').style.color = '#94a3b8';
+        displayReferenceText();
+    }
+
+    function displayReferenceText() {
+        const panel = document.getElementById('translation-ref-content');
+        const regions = showingKorean ? referenceData.ocrRegions : referenceData.translatedRegions;
+
+        if (regions && regions.length > 0) {
+            let html = '';
+            regions.forEach((region, idx) => {
+                const text = showingKorean
+                    ? (region.text || region.original_text || '')
+                    : (region.translatedText || region.translated_text || region.text || '');
+                if (text.trim()) {
+                    const borderColor = showingKorean ? '#f59e0b' : '#6366f1';
+                    html += `<div style="margin-bottom: 12px; padding: 8px; background: #0f172a; border-radius: 6px; border-left: 3px solid ${borderColor};">
+                        <span style="color: #64748b; font-size: 10px;">Box ${idx + 1}</span>
+                        <div style="color: #e2e8f0; margin-top: 4px;">${text}</div>
+                    </div>`;
+                }
+            });
+            panel.innerHTML = html || `<div style="color: #64748b;">No ${showingKorean ? 'Korean' : 'translated'} text found.</div>`;
+        } else {
+            panel.innerHTML = `<div style="color: #64748b;">No ${showingKorean ? 'Korean' : 'translated'} text found.</div>`;
+        }
+    }
+
+    async function loadTranslationsForReference() {
+        const panel = document.getElementById('translation-ref-content');
+        try {
+            const response = await fetch(`/api/webtoon/job/${jobId}/image/${imageId}/data`);
+            const data = await response.json();
+
+            referenceData.translatedRegions = data.translated_regions || [];
+            referenceData.ocrRegions = data.ocr_regions || [];
+
+            displayReferenceText();
+        } catch (error) {
+            console.error('Error loading translations:', error);
+            panel.innerHTML = '<div style="color: #ef4444;">Error loading translations</div>';
+        }
+    }
+
+    function handleCanvasClickForText(e) {
+        if (!addTextModeActive) return;
+
+        if (!e.ctrlKey) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+
+        const clickX = (e.clientX - rect.left) * scaleX;
+        const clickY = (e.clientY - rect.top) * scaleY;
+
+        const fontSize = parseInt(document.getElementById('text-font-size').value);
+        const fontColor = document.getElementById('text-font-color').value;
+        const strokeColor = document.getElementById('text-stroke-color').value;
+        const strokeWidth = parseInt(document.getElementById('text-stroke-width').value);
+
+        const textBox = {
+            id: ++textBoxIdCounter,
+            x: Math.round(clickX),
+            y: Math.round(clickY),
+            w: 200,
+            h: fontSize * 2,
+            text: '',
+            fontSize: fontSize,
+            color: fontColor,
+            strokeColor: strokeColor,
+            strokeWidth: strokeWidth
+        };
+
+        manualTextBoxes.push(textBox);
+        renderTextBox(textBox);
+
+        setTimeout(() => {
+            const input = document.getElementById(`text-input-${textBox.id}`);
+            if (input) input.focus();
+        }, 100);
+    }
+
+    function renderTextBox(textBox) {
+        const rect = img.getBoundingClientRect();
+        const scaleX = rect.width / img.naturalWidth;
+        const scaleY = rect.height / img.naturalHeight;
+
+        const container = document.createElement('div');
+        container.id = `text-box-${textBox.id}`;
+        container.className = 'manual-text-box';
+        container.style.cssText = `
+            position: absolute;
+            left: ${textBox.x * scaleX}px;
+            top: ${textBox.y * scaleY}px;
+            min-width: 100px;
+            z-index: 100;
+            background: rgba(99, 102, 241, 0.2);
+            border: 2px dashed #6366f1;
+            border-radius: 4px;
+            padding: 4px;
+        `;
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.innerHTML = '🗑️';
+        deleteBtn.style.cssText = `
+            position: absolute;
+            top: -12px;
+            right: -12px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: none;
+            background: #ef4444;
+            color: white;
+            cursor: pointer;
+            font-size: 10px;
+            z-index: 101;
+        `;
+        deleteBtn.onclick = () => deleteTextBox(textBox.id);
+        container.appendChild(deleteBtn);
+
+        const input = document.createElement('textarea');
+        input.id = `text-input-${textBox.id}`;
+        input.placeholder = 'Type text... (Enter for new line)';
+        input.value = textBox.text;
+        input.rows = 2;
+        input.style.cssText = `
+            width: 100%;
+            min-width: 150px;
+            min-height: 40px;
+            padding: 6px 8px;
+            background: rgba(0,0,0,0.8);
+            border: 1px solid #475569;
+            border-radius: 4px;
+            color: ${textBox.color};
+            font-size: ${textBox.fontSize * scaleY}px;
+            outline: none;
+            resize: both;
+            font-family: inherit;
+            line-height: 1.3;
+        `;
+        input.oninput = (e) => {
+            textBox.text = e.target.value;
+
+            input.style.height = 'auto';
+            input.style.height = input.scrollHeight + 'px';
+
+            input.style.width = Math.max(150, input.scrollWidth) + 'px';
+        };
+
+        input.onfocus = () => {
+            selectTextBox(textBox.id);
+        };
+        container.appendChild(input);
+
+        const sizeLabel = document.createElement('span');
+        sizeLabel.style.cssText = `
+            position: absolute;
+            bottom: -18px;
+            left: 0;
+            font-size: 10px;
+            color: #94a3b8;
+            background: #1e293b;
+            padding: 2px 4px;
+            border-radius: 3px;
+        `;
+        sizeLabel.textContent = `${textBox.fontSize}px`;
+        container.appendChild(sizeLabel);
+
+        container.style.cursor = 'move';
+        input.style.cursor = 'text';
+
+        let isDragging = false;
+        let startDragX = 0;
+        let startDragY = 0;
+        let startBoxLeft = 0;
+        let startBoxTop = 0;
+
+        container.addEventListener('mousedown', (e) => {
+
+            if (e.target === input || e.target === deleteBtn) return;
+
+            e.preventDefault();
+            isDragging = true;
+            startDragX = e.clientX;
+            startDragY = e.clientY;
+            startBoxLeft = container.offsetLeft;
+            startBoxTop = container.offsetTop;
+
+            selectTextBox(textBox.id);
+
+            const onMouseMove = (moveEvent) => {
+                if (!isDragging) return;
+
+                const deltaX = moveEvent.clientX - startDragX;
+                const deltaY = moveEvent.clientY - startDragY;
+
+                container.style.left = (startBoxLeft + deltaX) + 'px';
+                container.style.top = (startBoxTop + deltaY) + 'px';
+
+                const rect = img.getBoundingClientRect();
+                const scaleXNow = img.naturalWidth / rect.width;
+                const scaleYNow = img.naturalHeight / rect.height;
+                textBox.x = Math.round(container.offsetLeft * scaleXNow);
+                textBox.y = Math.round(container.offsetTop * scaleYNow);
+            };
+
+            const onMouseUp = () => {
+                isDragging = false;
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            };
+
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        });
+
+        const wrapper = img.parentElement;
+        wrapper.appendChild(container);
+    }
+
+    function selectTextBox(id) {
+        selectedTextBoxId = id;
+
+        document.querySelectorAll('.manual-text-box').forEach(el => {
+            el.style.borderColor = '#6366f1';
+        });
+        const el = document.getElementById(`text-box-${id}`);
+        if (el) el.style.borderColor = '#22c55e';
+    }
+
+    function deleteTextBox(id) {
+        manualTextBoxes = manualTextBoxes.filter(tb => tb.id !== id);
+        const el = document.getElementById(`text-box-${id}`);
+        if (el) el.remove();
+        selectedTextBoxId = null;
+    }
+
+    let selectedTextBoxId = null;
+    let isDraggingTextBox = false;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    function handleTextBoxDragStart(e) {
+        if (!addTextModeActive) return;
+        if (e.ctrlKey) return;
+
+        const clickedBox = findTextBoxAtPosition(e);
+        if (clickedBox) {
+            selectedTextBoxId = clickedBox.id;
+            isDraggingTextBox = true;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const clickX = (e.clientX - rect.left) * scaleX;
+            const clickY = (e.clientY - rect.top) * scaleY;
+
+            dragOffsetX = clickX - clickedBox.x;
+            dragOffsetY = clickY - clickedBox.y;
+
+            document.querySelectorAll('.manual-text-box').forEach(el => {
+                el.style.borderColor = '#6366f1';
+            });
+            const el = document.getElementById(`text-box-${selectedTextBoxId}`);
+            if (el) el.style.borderColor = '#22c55e';
+
+            e.preventDefault();
+        }
+    }
+
+    function handleTextBoxDragMove(e) {
+        if (!isDraggingTextBox || !selectedTextBoxId) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const displayScaleX = rect.width / img.naturalWidth;
+        const displayScaleY = rect.height / img.naturalHeight;
+
+        const moveX = (e.clientX - rect.left) * scaleX;
+        const moveY = (e.clientY - rect.top) * scaleY;
+
+        const textBox = manualTextBoxes.find(tb => tb.id === selectedTextBoxId);
+        if (textBox) {
+            textBox.x = Math.round(moveX - dragOffsetX);
+            textBox.y = Math.round(moveY - dragOffsetY);
+
+            const el = document.getElementById(`text-box-${selectedTextBoxId}`);
+            if (el) {
+                el.style.left = (textBox.x * displayScaleX) + 'px';
+                el.style.top = (textBox.y * displayScaleY) + 'px';
+            }
+        }
+    }
+
+    function handleTextBoxDragEnd(e) {
+        isDraggingTextBox = false;
+    }
+
+    function findTextBoxAtPosition(e) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const clickX = (e.clientX - rect.left) * scaleX;
+        const clickY = (e.clientY - rect.top) * scaleY;
+
+        for (let i = manualTextBoxes.length - 1; i >= 0; i--) {
+            const tb = manualTextBoxes[i];
+            if (clickX >= tb.x && clickX <= tb.x + tb.w &&
+                clickY >= tb.y && clickY <= tb.y + tb.h + 50) {
+                return tb;
+            }
+        }
+        return null;
+    }
+
+    async function saveTextBoxes() {
+        console.log('🔹 saveTextBoxes called');
+        console.log('🔹 manualTextBoxes:', manualTextBoxes);
+
+        if (manualTextBoxes.length === 0) {
+            window.showAlertModal('No Text', 'Please add at least one text box before saving.', 'error');
+            return;
+        }
+
+        const validBoxes = manualTextBoxes.filter(tb => tb.text.trim());
+        console.log('🔹 validBoxes after filter:', validBoxes);
+
+        if (validBoxes.length === 0) {
+            window.showAlertModal('Empty Text', 'Please enter text in at least one text box.', 'error');
+            return;
+        }
+
+        const saveBtn = document.getElementById('save-text-btn');
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '⏳ Saving...';
+
+        try {
+
+            const imgRect = img.getBoundingClientRect();
+            const scaleX = img.naturalWidth / imgRect.width;
+            const scaleY = img.naturalHeight / imgRect.height;
+
+            const regions = validBoxes.map(tb => {
+
+                const container = document.getElementById(`text-box-${tb.id}`);
+                let x = tb.x, y = tb.y, w = tb.w, h = tb.h;
+
+                if (container) {
+                    x = Math.round(container.offsetLeft * scaleX);
+                    y = Math.round(container.offsetTop * scaleY);
+                    w = Math.round(container.offsetWidth * scaleX);
+                    h = Math.round(container.offsetHeight * scaleY);
+                }
+
+                return {
+                    bbox: [x, y, w, h],
+                    user_text: tb.text,
+                    font_size: tb.fontSize,
+                    color: tb.color,
+                    stroke_color: tb.strokeColor,
+                    stroke_width: tb.strokeWidth,
+                    align: 'left',
+                    vertical_align: 'top'
+                };
+            });
+
+            console.log('🔹 Regions to send:', regions);
+            console.log('🔹 API URL:', `/api/webtoon/job/${jobId}/image/${imageId}/typeset/render`);
+
+            const response = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/typeset/render`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    regions: regions,
+                    replace: true
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to save text');
+            }
+
+            window.showAlertModal('Text Saved', `Successfully added ${validBoxes.length} text regions to the image.`, 'success');
+
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+
+        } catch (error) {
+            console.error('Error saving text:', error);
+            window.showAlertModal('Error', error.message, 'error');
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '💾 Save Text';
+        }
+    }
+
+    document.getElementById('text-stroke-width')?.addEventListener('input', function () {
+        document.getElementById('stroke-width-display').textContent = this.value + 'px';
+        updateSelectedTextBoxStyle();
+    });
+
+    document.getElementById('text-font-size')?.addEventListener('change', updateSelectedTextBoxStyle);
+    document.getElementById('text-font-color')?.addEventListener('input', updateSelectedTextBoxStyle);
+    document.getElementById('text-stroke-color')?.addEventListener('input', updateSelectedTextBoxStyle);
+
+    function updateSelectedTextBoxStyle() {
+        if (!selectedTextBoxId) return;
+
+        const textBox = manualTextBoxes.find(tb => tb.id === selectedTextBoxId);
+        if (!textBox) return;
+
+        const fontSize = parseInt(document.getElementById('text-font-size').value);
+        const fontColor = document.getElementById('text-font-color').value;
+        const strokeColor = document.getElementById('text-stroke-color').value;
+        const strokeWidth = parseInt(document.getElementById('text-stroke-width').value);
+
+        textBox.fontSize = fontSize;
+        textBox.color = fontColor;
+        textBox.strokeColor = strokeColor;
+        textBox.strokeWidth = strokeWidth;
+
+        const input = document.getElementById(`text-input-${selectedTextBoxId}`);
+        if (input) {
+            const rect = img.getBoundingClientRect();
+            const scaleY = rect.height / img.naturalHeight;
+            input.style.color = fontColor;
+            input.style.fontSize = (fontSize * scaleY) + 'px';
+        }
+
+        const sizeLabel = document.querySelector(`#text-box-${selectedTextBoxId} span`);
+        if (sizeLabel) {
+            sizeLabel.textContent = `${fontSize}px`;
+        }
+    }
+
+</script>
+{% endblock %}

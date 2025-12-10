@@ -1,0 +1,382 @@
+{% extends "base.html" %}
+
+{% block title %}Model Pricing Management - LunaFrost Admin{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header style="margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>💰 Global Model Pricing</h1>
+                <p style="color: var(--text-secondary); margin-top: 10px;">
+                    Manage pricing for all providers - applies to all users
+                </p>
+            </div>
+            <a href="/admin" class="btn btn-secondary">← Back to Admin</a>
+        </div>
+    </header>
+
+    <div
+        style="background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+        <h3 style="margin-top: 0;">Add New Model Pricing</h3>
+        <div style="display: grid; grid-template-columns: 1fr 2fr 1fr 1fr auto; gap: 12px; align-items: end;">
+            <div>
+                <label
+                    style="display: block; margin-bottom: 4px; font-size: 0.9rem; color: var(--text-secondary);">Provider</label>
+                <select id="new-provider" class="form-control">
+                    <option value="openai">OpenAI</option>
+                    <option value="google">Google</option>
+                    <option value="openrouter">OpenRouter</option>
+                    <option value="anthropic">Anthropic</option>
+                </select>
+            </div>
+            <div>
+                <label
+                    style="display: block; margin-bottom: 4px; font-size: 0.9rem; color: var(--text-secondary);">Model
+                    Name</label>
+                <input type="text" id="new-model" class="form-control" placeholder="e.g., gpt-4, gemini-pro">
+            </div>
+            <div>
+                <label
+                    style="display: block; margin-bottom: 4px; font-size: 0.9rem; color: var(--text-secondary);">Input
+                    ($/1M)</label>
+                <input type="text" id="new-input-price" class="form-control" placeholder="10.00">
+            </div>
+            <div>
+                <label
+                    style="display: block; margin-bottom: 4px; font-size: 0.9rem; color: var(--text-secondary);">Output
+                    ($/1M)</label>
+                <input type="text" id="new-output-price" class="form-control" placeholder="30.00">
+            </div>
+            <button id="add-btn" class="btn btn-primary">+ Add</button>
+        </div>
+    </div>
+
+    <div
+        style="background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+        <h3 style="margin-top: 0;">📊 Bulk Import from Excel</h3>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 12px;">
+            Upload an Excel file (.xlsx) with columns: Provider, Model Name, Input ($/1M), Output ($/1M)
+        </p>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <input type="file" id="excel-upload" accept=".xlsx,.xls" class="form-control" style="flex: 1;">
+            <button id="upload-btn" class="btn btn-primary">Upload</button>
+        </div>
+        <div id="upload-status" style="margin-top: 12px; font-size: 0.9rem;"></div>
+    </div>
+
+    <div id="pricing-container">
+        <p style="text-align: center; padding: 40px; color: var(--text-secondary);">Loading pricing data...</p>
+    </div>
+</div>
+
+<script>
+    let allPricing = {};
+
+    async function loadPricing() {
+        try {
+            const response = await fetch('/admin/api/pricing');
+            const data = await response.json();
+
+            if (data.success) {
+                allPricing = data.pricing;
+                renderPricing();
+            } else {
+                window.showAlertModal('Error', data.error || 'Unknown error', 'error');
+            }
+        } catch (error) {
+            console.error('Error loading pricing:', error);
+            window.showAlertModal('Error', 'Error loading pricing data', 'error');
+        }
+    }
+
+    function renderPricing() {
+        const container = document.getElementById('pricing-container');
+        container.innerHTML = '';
+
+        const providers = Object.keys(allPricing).sort();
+
+        if (providers.length === 0) {
+            container.innerHTML = '<p style="text-align: center; padding: 40px; color: var(--text-secondary);">No pricing data yet. Add some models above!</p>';
+            return;
+        }
+
+        providers.forEach(provider => {
+            const models = allPricing[provider];
+
+            const section = document.createElement('div');
+            section.style.marginBottom = '30px';
+
+            section.innerHTML = `
+                <h3 style="text-transform: capitalize; margin-bottom: 16px;">${provider}</h3>
+                <div style="overflow-x: auto;">
+                    <table class="pricing-table" style="width: 100%; border-collapse: collapse; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px;">
+                        <thead>
+                            <tr style="background: var(--bg-primary); border-bottom: 2px solid var(--border-light);">
+                                <th style="padding: 12px; text-align: left; color: var(--text-primary);">Model</th>
+                                <th style="padding: 12px; text-align: right; color: var(--text-primary);">Input ($/1M tokens)</th>
+                                <th style="padding: 12px; text-align: right; color: var(--text-primary);">Output ($/1M tokens)</th>
+                                <th style="padding: 12px; text-align: right; color: var(--text-primary);">Last Updated</th>
+                                <th style="padding: 12px; text-align: right; color: var(--text-primary);">Updated By</th>
+                                <th style="padding: 12px; text-align: center; color: var(--text-primary);">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-${provider}">
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            container.appendChild(section);
+
+            const tbody = document.getElementById(`tbody-${provider}`);
+
+            models.forEach(model => {
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid var(--border-light)';
+                row.id = `row-${model.id}`;
+                row.dataset.mode = 'view';
+                row.dataset.modelId = model.id;
+                row.dataset.provider = provider;
+                row.dataset.modelName = model.model_name;
+                row.dataset.inputPrice = model.input_price_per_1m || '';
+                row.dataset.outputPrice = model.output_price_per_1m || '';
+
+                row.innerHTML = `
+                    <td style="padding: 12px; color: var(--text-primary); font-family: monospace;">${model.model_name}</td>
+                    <td style="padding: 12px; text-align: right; color: var(--text-primary);" class="input-cell">$${model.input_price_per_1m || '—'}</td>
+                    <td style="padding: 12px; text-align: right; color: var(--text-primary);" class="output-cell">$${model.output_price_per_1m || '—'}</td>
+                    <td style="padding: 12px; text-align: right; color: var(--text-secondary); font-size: 0.85rem;">${formatDate(model.updated_at)}</td>
+                    <td style="padding: 12px; text-align: right; color: var(--text-secondary); font-size: 0.85rem;">${model.updated_by || '—'}</td>
+                    <td style="padding: 12px; text-align: center;" class="actions-cell">
+                        <button class="btn btn-secondary btn-sm" onclick="editPricing(${model.id})">Edit</button>
+                        <button class="btn btn-danger btn-sm" onclick="deletePricing(${model.id}, '${provider}', '${model.model_name}')">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        });
+    }
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '—';
+        const date = new Date(dateStr);
+        return date.toLocaleString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    async function addPricing() {
+        const provider = document.getElementById('new-provider').value;
+        const modelName = document.getElementById('new-model').value.trim();
+        const inputPrice = document.getElementById('new-input-price').value.trim();
+        const outputPrice = document.getElementById('new-output-price').value.trim();
+
+        if (!modelName) {
+            window.showAlertModal('Validation Error', 'Please enter a model name', 'error');
+            return;
+        }
+
+        if (!inputPrice && !outputPrice) {
+            window.showAlertModal('Validation Error', 'Please enter at least one price (input or output)', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch('/admin/api/pricing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: provider,
+                    model_name: modelName,
+                    input_price_per_1m: inputPrice,
+                    output_price_per_1m: outputPrice
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+
+                document.getElementById('new-model').value = '';
+                document.getElementById('new-input-price').value = '';
+                document.getElementById('new-output-price').value = '';
+
+                await loadPricing();
+
+                window.showAlertModal('Success', 'Pricing added successfully!', 'success');
+            } else {
+                window.showAlertModal('Error', data.error || 'Unknown error', 'error');
+            }
+        } catch (error) {
+            console.error('Error adding pricing:', error);
+            window.showAlertModal('Error', 'Error adding pricing', 'error');
+        }
+    }
+
+    async function deletePricing(id, provider, modelName) {
+        if (!confirm(`Delete pricing for ${provider}/${modelName}?`)) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`/admin/api/pricing/${id}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                await loadPricing();
+                window.showAlertModal('Success', 'Pricing deleted successfully!', 'success');
+            } else {
+                window.showAlertModal('Error', data.error || 'Unknown error', 'error');
+            }
+        } catch (error) {
+            console.error('Error deleting pricing:', error);
+            window.showAlertModal('Error', 'Error deleting pricing', 'error');
+        }
+    }
+
+    function editPricing(id) {
+        const row = document.getElementById(`row-${id}`);
+        if (!row) return;
+
+        const mode = row.dataset.mode;
+
+        if (mode === 'view') {
+
+            const inputCell = row.querySelector('.input-cell');
+            const outputCell = row.querySelector('.output-cell');
+            const actionsCell = row.querySelector('.actions-cell');
+
+            const currentInput = row.dataset.inputPrice;
+            const currentOutput = row.dataset.outputPrice;
+
+            inputCell.innerHTML = `<input type="text" class="form-control" style="width: 100px; margin-left: auto;" value="${currentInput}" id="edit-input-${id}">`;
+            outputCell.innerHTML = `<input type="text" class="form-control" style="width: 100px; margin-left: auto;" value="${currentOutput}" id="edit-output-${id}">`;
+            actionsCell.innerHTML = `
+                <button class="btn btn-primary btn-sm" onclick="savePricing(${id})">Save</button>
+                <button class="btn btn-secondary btn-sm" onclick="cancelEdit(${id})">Cancel</button>
+            `;
+
+            row.dataset.mode = 'edit';
+        }
+    }
+
+    function cancelEdit(id) {
+
+        loadPricing();
+    }
+
+    async function savePricing(id) {
+        const row = document.getElementById(`row-${id}`);
+        if (!row) return;
+
+        const provider = row.dataset.provider;
+        const modelName = row.dataset.modelName;
+        const inputPrice = document.getElementById(`edit-input-${id}`).value.trim();
+        const outputPrice = document.getElementById(`edit-output-${id}`).value.trim();
+
+        try {
+            const response = await fetch('/admin/api/pricing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: provider,
+                    model_name: modelName,
+                    input_price_per_1m: inputPrice,
+                    output_price_per_1m: outputPrice
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                await loadPricing();
+                window.showAlertModal('Success', 'Pricing updated successfully!', 'success');
+            } else {
+                window.showAlertModal('Error', data.error || 'Unknown error', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving pricing:', error);
+            window.showAlertModal('Error', 'Error saving pricing', 'error');
+        }
+    }
+
+    async function uploadExcel() {
+        const fileInput = document.getElementById('excel-upload');
+        const statusDiv = document.getElementById('upload-status');
+
+        if (!fileInput.files || !fileInput.files[0]) {
+            window.showAlertModal('Validation Error', 'Please select an Excel file', 'error');
+            return;
+        }
+
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+
+        statusDiv.innerHTML = '<span style="color: var(--primary-color);">Uploading...</span>';
+
+        try {
+            const response = await fetch('/admin/api/pricing/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                statusDiv.innerHTML = `<span style="color: #22543d;">✓ ${data.message}. Successfully imported ${data.imported_count} models.</span>`;
+                fileInput.value = '';
+                await loadPricing();
+            } else {
+                statusDiv.innerHTML = `<span style="color: #e53e3e;">✗ Error: ${data.error}</span>`;
+            }
+        } catch (error) {
+            console.error('Error uploading file:', error);
+            statusDiv.innerHTML = '<span style="color: #e53e3e;">✗ Upload failed</span>';
+        }
+    }
+
+    loadPricing();
+
+    document.getElementById('add-btn').addEventListener('click', addPricing);
+
+    document.getElementById('upload-btn').addEventListener('click', uploadExcel);
+
+    document.getElementById('new-model').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addPricing();
+    });
+</script>
+
+<style>
+    .form-control {
+        padding: 8px 12px;
+        border: 1px solid var(--border-light);
+        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: var(--primary-color);
+    }
+
+    .btn-sm {
+        padding: 4px 12px;
+        font-size: 0.85rem;
+    }
+
+    .pricing-table tbody tr:hover {
+        background: var(--bg-primary);
+    }
+</style>
+{% endblock %}

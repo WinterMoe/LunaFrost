@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Contact Us - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 800px; margin: 0 auto; padding: var(--space-2xl) var(--space-lg);">
+    <header
+        style="background: var(--bg-secondary); padding: var(--space-xl); border-radius: var(--radius-lg); border: 1px solid var(--border-light); margin-bottom: var(--space-xl); text-align: center;">
+        <h1 style="margin-bottom: var(--space-sm);">Contact Us</h1>
+        <p class="subtitle">We'd love to hear from you. Send us a message below.</p>
+    </header>
+
+    <div class="settings-card">
+        <form action="/contact" method="POST" style="display: flex; flex-direction: column; gap: var(--space-lg);">
+
+            
+            <div class="form-group">
+                <label for="name" style="display: block; margin-bottom: var(--space-xs); font-weight: 500;">Name
+                    (Optional)</label>
+                <input type="text" id="name" name="name" class="form-control" placeholder="Your name"
+                    style="width: 100%; padding: var(--space-sm); border: 1px solid var(--border-medium); border-radius: var(--radius-md);">
+            </div>
+
+            
+            <div class="form-group">
+                <label for="email" style="display: block; margin-bottom: var(--space-xs); font-weight: 500;">Email <span
+                        style="color: var(--accent-primary);">*</span></label>
+                <input type="email" id="email" name="email" class="form-control" placeholder="your@email.com" required
+                    style="width: 100%; padding: var(--space-sm); border: 1px solid var(--border-medium); border-radius: var(--radius-md);">
+            </div>
+
+            
+            <div class="form-group">
+                <label for="topic" style="display: block; margin-bottom: var(--space-xs); font-weight: 500;">Topic <span
+                        style="color: var(--accent-primary);">*</span></label>
+                <select id="topic" name="topic" class="form-control" required
+                    style="width: 100%; padding: var(--space-sm); border: 1px solid var(--border-medium); border-radius: var(--radius-md); background-color: var(--bg-secondary); color: var(--text-primary);">
+                    <option value="General">General</option>
+                    <option value="Account Issue">Account Issue</option>
+                    <option value="Issue">Issue</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            
+            <div class="form-group">
+                <label for="message" style="display: block; margin-bottom: var(--space-xs); font-weight: 500;">Message
+                    <span style="color: var(--accent-primary);">*</span></label>
+                <textarea id="message" name="message" class="form-control" rows="6" placeholder="How can we help you?"
+                    required
+                    style="width: 100%; padding: var(--space-sm); border: 1px solid var(--border-medium); border-radius: var(--radius-md); resize: vertical;"></textarea>
+            </div>
+
+            
+            <div class="form-group">
+                <label for="captcha_answer" style="display: block; margin-bottom: var(--space-xs); font-weight: 500;">
+                    Security Check: What is {{ num1 }} + {{ num2 }}? <span
+                        style="color: var(--accent-primary);">*</span>
+                </label>
+                <input type="number" id="captcha_answer" name="captcha_answer" class="form-control"
+                    placeholder="Enter the sum" required
+                    style="width: 100%; padding: var(--space-sm); border: 1px solid var(--border-medium); border-radius: var(--radius-md);">
+            </div>
+
+            
+            <div style="text-align: right;">
+                <button type="submit" class="btn btn-primary"
+                    style="padding: var(--space-sm) var(--space-xl); background-color: var(--accent-primary); color: white; border: none; border-radius: var(--radius-md); cursor: pointer; font-weight: 600; transition: background-color 0.2s;">
+                    Send Message
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <div style="text-align: center; margin-top: var(--space-xl);">
+        <a href="/" class="btn btn-secondary">← Back to Home</a>
+    </div>
+</div>
+
+{% if success %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        window.showAlertModal('Success', '{{ message }}', 'success');
+    });
+</script>
+{% endif %}
+
+{% if error %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        window.showAlertModal('Error', '{{ error }}', 'error');
+    });
+</script>
+{% endif %}
+
+{% endblock %}

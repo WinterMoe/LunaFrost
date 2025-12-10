@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}{{ novel.title }} - Shared Novel{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="novel-header">
+        <div class="novel-cover">
+            {% if novel.cover_url %}
+            <img src="/images/{{ novel.cover_url }}" alt="{{ novel.title }} Cover">
+            {% else %}
+            <div class="no-cover">No Cover</div>
+            {% endif %}
+        </div>
+        <div class="novel-info">
+            <h1>{{ novel.title }}</h1>
+            <p class="author">By {{ novel.author }}</p>
+
+            <div class="tags">
+                {% for tag in novel.tags %}
+                <span class="tag">{{ tag }}</span>
+                {% endfor %}
+            </div>
+
+            <div class="synopsis">
+                <h3>Synopsis</h3>
+                <p>{{ novel.synopsis }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="chapter-list-container">
+        <h2>Chapters</h2>
+        <div class="chapter-list">
+            {% for chapter in novel.chapters %}
+            <a href="/shared/{{ token }}/read/{{ chapter.chapter_number }}" class="chapter-item">
+                <span class="chapter-number">Ch. {{ chapter.chapter_number }}</span>
+                <span class="chapter-title">{{ chapter.title }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+    .novel-header {
+        display: flex;
+        gap: 30px;
+        margin-bottom: 40px;
+        background: var(--bg-secondary);
+        padding: 30px;
+        border-radius: 12px;
+    }
+
+    .novel-cover img {
+        max-width: 200px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .no-cover {
+        width: 200px;
+        height: 300px;
+        background: var(--bg-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 8px;
+        color: var(--text-secondary);
+    }
+
+    .novel-info h1 {
+        margin: 0 0 10px 0;
+        font-size: 2rem;
+    }
+
+    .author {
+        color: var(--text-secondary);
+        font-size: 1.1rem;
+        margin-bottom: 20px;
+    }
+
+    .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+
+    .tag {
+        background: var(--accent-color);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 16px;
+        font-size: 0.9rem;
+    }
+
+    .synopsis {
+        line-height: 1.6;
+        color: var(--text-primary);
+    }
+
+    .chapter-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .chapter-item {
+        display: flex;
+        gap: 15px;
+        padding: 15px;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        text-decoration: none;
+        color: var(--text-primary);
+        transition: transform 0.2s;
+    }
+
+    .chapter-item:hover {
+        transform: translateY(-2px);
+        background: var(--bg-hover);
+    }
+
+    .chapter-number {
+        font-weight: bold;
+        color: var(--accent-color);
+        min-width: 80px;
+    }
+
+    @media (max-width: 768px) {
+        .novel-header {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        .tags {
+            justify-content: center;
+        }
+    }
+</style>
+{% endblock %}

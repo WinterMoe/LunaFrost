@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Login - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <img src="{{ url_for('static', filename='images/logo_transparent_resized.png') }}"
+                alt="LunaFrost Translator">
+        </div>
+
+        <form id="login-form" class="auth-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+
+            <div id="error-message" class="alert alert-error" style="display: none;"></div>
+
+            <button type="submit" class="btn btn-primary btn-large" style="width: 100%;">
+                Login
+            </button>
+        </form>
+
+        <div class="auth-links">
+            <a href="/auth/forgot-password">Forgot Password?</a>
+        </div>
+
+        <div class="auth-footer">
+            Don't have an account? <a href="/auth/signup">Sign up here</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        const errorDiv = document.getElementById('error-message');
+
+        try {
+            const response = await fetchWithCSRF('/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                window.location.href = data.redirect;
+            } else {
+                errorDiv.textContent = data.error || 'Login failed';
+                errorDiv.style.display = 'block';
+            }
+        } catch (error) {
+            errorDiv.textContent = 'An error occurred. Please try again.';
+            errorDiv.style.display = 'block';
+        }
+    });
+</script>
+{% endblock %}

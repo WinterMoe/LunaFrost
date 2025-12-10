@@ -1,0 +1,749 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Images - {{ webtoon.title }} - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header>
+        <div style="margin-bottom: 20px;">
+            <a href="/webtoon/{{ webtoon.job_id }}" class="btn btn-secondary">← Back to {{ webtoon.title }}</a>
+        </div>
+        <h1>📤 Upload Images</h1>
+        <h2 class="subtitle">{{ webtoon.title }}</h2>
+        <p class="help-text">
+            {% if webtoon.reading_mode == 'webtoon' %}
+            Upload images for your webtoon chapters. Images within a chapter will stack vertically.
+            {% else %}
+            Upload pages for your manga. Each image will be a separate page.
+            {% endif %}
+        </p>
+    </header>
+
+    <div class="upload-card">
+        
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-label">Status:</span>
+                <span class="status-value status-{{ webtoon.status }}">{{ webtoon.status|title }}</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Total Images:</span>
+                <span class="status-value">{{ webtoon.total_images }}</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">Reading Mode:</span>
+                <span class="status-value">{{ webtoon.reading_mode|title }}</span>
+            </div>
+        </div>
+
+        {% if webtoon.reading_mode == 'webtoon' %}
+        
+        <div class="chapter-section">
+            <h3>📑 Chapters</h3>
+            {% if webtoon.chapters %}
+            <div class="existing-chapters">
+                {% for chapter in webtoon.chapters %}
+                <div class="chapter-card">
+                    <span class="chapter-name">{{ chapter.name or 'Chapter ' ~ chapter.number }}</span>
+                    <span class="chapter-count">{{ chapter.image_count }} images</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="form-group" style="margin-top: 16px;">
+                <label>Add images to:</label>
+                <select class="form-control" id="chapter-select" name="chapter_target">
+                    <option value="new">➕ New Chapter</option>
+                    {% for chapter in webtoon.chapters %}
+                    <option value="{{ chapter.number }}">Chapter {{ chapter.number }}{% if chapter.name %}: {{
+                        chapter.name }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group new-chapter-name" id="new-chapter-name-group">
+                <label for="chapter-name">New Chapter Name (optional)</label>
+                <input type="text" class="form-control" id="chapter-name" name="chapter_name"
+                    placeholder="e.g., Chapter 1: The Beginning">
+            </div>
+        </div>
+        {% endif %}
+
+        <form id="upload-form" enctype="multipart/form-data">
+            
+            <div class="dropzone" id="drop-zone">
+                <div class="dropzone-content">
+                    <div class="dropzone-icon">📁</div>
+                    <h4>Drag & Drop Images Here</h4>
+                    <p>or click to browse</p>
+                    <input type="file" class="d-none" id="image-files" name="images" multiple
+                        accept="image/png,image/jpeg,image/jpg,image/webp">
+                    <p class="help-text">
+                        {% if webtoon.reading_mode == 'webtoon' %}
+                        <strong>Tip:</strong> Name your files in order (e.g., 001.jpg, 002.jpg) for correct stacking
+                        {% else %}
+                        <strong>Tip:</strong> Files will be ordered by filename (e.g., page_001.jpg, page_002.jpg)
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+
+            
+            <div id="file-preview-container" class="d-none">
+                <h4>Selected Images (<span id="file-count">0</span>)</h4>
+                <div id="file-preview" class="file-preview-grid"></div>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="clear-files">Clear All</button>
+            </div>
+
+            
+            <div class="ocr-settings">
+                <h4>🔍 Translation Settings</h4>
+
+                <div class="form-group">
+                    <label for="ocr-method">OCR Method</label>
+                    <select class="form-control" id="ocr-method" name="ocr_method">
+                        <option value="google">Google Cloud Vision</option>
+                        <option value="azure">Azure Computer Vision</option>
+                        <option value="nanobananapro">Nano Banana Pro</option>
+                    </select>
+                </div>
+            </div>
+
+            
+            <div class="submit-buttons">
+                <button type="submit" class="btn btn-primary btn-lg" id="upload-btn" disabled>
+                    <span id="upload-text">Upload Images</span>
+                    <span id="upload-spinner" class="spinner-border spinner-border-sm d-none ms-2"></span>
+                </button>
+
+                <button type="button" class="btn btn-success btn-lg" id="translate-btn" style="display: none;" {% if
+                    webtoon.total_images==0 %}disabled{% endif %}>
+                    <span id="translate-text">Start OCR Scan</span>
+                    <span id="translate-spinner" class="spinner-border spinner-border-sm d-none ms-2"></span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    
+
+    
+    <div class="settings-card">
+        <div class="collapsible-header" onclick="toggleCollapse('image-status-content')">
+            <h2>🖼️ Image Status</h2>
+            <span class="collapse-icon collapsed" id="image-status-icon">▼</span>
+        </div>
+        <div class="collapsible-content collapsed" id="image-status-content">
+            <p style="color: #718096; margin-bottom: 15px;">
+                View the status of all images in this webtoon.
+            </p>
+            {% if webtoon.images and webtoon.images|length > 0 %}
+            <div
+                style="max-height: 400px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 8px; padding: 15px;">
+                {% for image in webtoon.images %}
+                <div
+                    style="padding: 10px; border-bottom: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 500;">{{ image.original_filename }}</div>
+                        <div style="font-size: 0.85rem; color: #718096; margin-top: 5px;">
+                            Status:
+                            {% if image.status == 'completed' %}
+                            <span style="color: #48bb78;">✅ Completed</span>
+                            {% elif image.status == 'processing' %}
+                            <span style="color: #ed8936;">⏳ Processing</span>
+                            {% elif image.status == 'failed' %}
+                            <span style="color: #e53e3e;">❌ Failed</span>
+                            {% else %}
+                            <span style="color: #a0aec0;">⏸️ Pending</span>
+                            {% endif %}
+                        </div>
+                        {% if image.error_message %}
+                        <div style="font-size: 0.85rem; color: #e53e3e; margin-top: 5px;">
+                            Error: {{ image.error_message }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if image.status == 'completed' and image.url %}
+                    <div style="margin-left: 15px;">
+                        <a href="{{ image.url }}" target="_blank" class="btn btn-secondary"
+                            style="padding: 6px 12px; font-size: 0.85rem;">
+                            👁️ View
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #718096;">No images found.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    
+    {% if webtoon.images %}
+    <div class="existing-images-card">
+        <h3>📷 Uploaded Images ({{ webtoon.images|length }})</h3>
+        <div class="image-grid">
+            {% for img in webtoon.images %}
+            <div class="image-thumb" data-image-id="{{ img.id }}">
+                <img src="/images/{{ session.get('user_id') }}/{{ img.original_path }}"
+                    alt="{{ img.original_filename }}" loading="lazy">
+                <div class="image-info">
+                    <span class="chapter-badge">Ch {{ img.chapter_number }}</span>
+                    {% if img.status == 'completed' %}
+                    <span class="status-badge completed">✓</span>
+                    {% elif img.status == 'processing' %}
+                    <span class="status-badge processing">⏳</span>
+                    {% elif img.status == 'failed' %}
+                    <span class="status-badge failed">✗</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .upload-card,
+    .existing-images-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 24px;
+        margin-top: 20px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .subtitle {
+        color: var(--text-secondary);
+        font-weight: 400;
+        font-size: 1.2rem;
+        margin-top: -10px;
+    }
+
+    .status-bar {
+        display: flex;
+        gap: 24px;
+        padding: 16px;
+        background: rgba(99, 102, 241, 0.1);
+        border-radius: 8px;
+        margin-bottom: 24px;
+    }
+
+    .status-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .status-label {
+        color: var(--text-secondary);
+    }
+
+    .status-value {
+        font-weight: 600;
+    }
+
+    .status-pending {
+        color: #f59e0b;
+    }
+
+    .status-processing {
+        color: #3b82f6;
+    }
+
+    .status-completed {
+        color: #10b981;
+    }
+
+    .status-failed {
+        color: #ef4444;
+    }
+
+    .status-draft {
+        color: #6b7280;
+    }
+
+    .chapter-section {
+        background: rgba(0, 0, 0, 0.05);
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 24px;
+    }
+
+    .existing-chapters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+    }
+
+    .chapter-card {
+        background: var(--card-bg);
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: 1px solid var(--border-color);
+        display: flex;
+        gap: 12px;
+        align-items: center;
+    }
+
+    .chapter-name {
+        font-weight: 600;
+    }
+
+    .chapter-count {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+    }
+
+    .dropzone {
+        border: 3px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 48px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: rgba(99, 102, 241, 0.02);
+    }
+
+    .dropzone:hover,
+    .dropzone.dragover {
+        border-color: var(--primary-color);
+        background: rgba(99, 102, 241, 0.05);
+    }
+
+    .dropzone-icon {
+        font-size: 3rem;
+        margin-bottom: 16px;
+    }
+
+    .file-preview-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 12px;
+        margin: 16px 0;
+    }
+
+    .preview-thumb {
+        aspect-ratio: 1;
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .preview-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .preview-thumb .remove-btn {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        background: rgba(239, 68, 68, 0.9);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        cursor: pointer;
+        font-size: 12px;
+    }
+
+    .ocr-settings {
+        margin-top: 24px;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 8px;
+    }
+
+    .submit-buttons {
+        display: flex;
+        gap: 16px;
+        margin-top: 24px;
+    }
+
+    .submit-buttons .btn {
+        flex: 1;
+    }
+
+    .image-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+    }
+
+    .image-thumb {
+        position: relative;
+        aspect-ratio: 3/4;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 2px solid var(--border-color);
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .image-thumb:hover {
+        border-color: var(--primary-color);
+        transform: scale(1.02);
+    }
+
+    .image-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .image-info {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+        padding: 8px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .chapter-badge {
+        background: rgba(99, 102, 241, 0.9);
+        color: white;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .status-badge {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+    }
+
+    .status-badge.completed {
+        background: #10b981;
+        color: white;
+    }
+
+    .status-badge.processing {
+        background: #3b82f6;
+        color: white;
+    }
+
+    .status-badge.failed {
+        background: #ef4444;
+        color: white;
+    }
+
+    .form-group {
+        margin-bottom: 16px;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 12px 16px;
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        background: var(--input-bg);
+        color: var(--text-primary);
+    }
+
+    .settings-card {
+        background: var(--card-bg);
+        border-radius: 12px;
+        padding: 24px;
+        margin-top: 20px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .collapsible-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .collapsible-header:hover {
+        opacity: 0.8;
+    }
+
+    .collapsible-header h2 {
+        margin: 0;
+    }
+
+    .collapse-icon {
+        font-size: 1.2rem;
+        transition: transform 0.3s ease;
+    }
+
+    .collapse-icon.collapsed {
+        transform: rotate(-90deg);
+    }
+
+    .collapsible-content {
+        overflow: hidden;
+        transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+        max-height: 2000px;
+        opacity: 1;
+        padding-top: 15px;
+    }
+
+    .collapsible-content.collapsed {
+        max-height: 0;
+        opacity: 0;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+</style>
+
+<script>
+    const jobId = '{{ webtoon.job_id }}';
+    const readingMode = '{{ webtoon.reading_mode }}';
+    let selectedFiles = [];
+
+    function toggleCollapse(contentId) {
+        const content = document.getElementById(contentId);
+        const icon = document.getElementById(contentId.replace('-content', '-icon'));
+        if (content && icon) {
+            content.classList.toggle('collapsed');
+            icon.classList.toggle('collapsed');
+        }
+    }
+
+    function updateTranslateButton() {
+        const translateBtn = document.getElementById('translate-btn');
+        const translateText = document.getElementById('translate-text');
+        const overwriteCheckbox = document.getElementById('overwrite-text');
+        const ocrMethodSelect = document.getElementById('ocr-method');
+        const totalImages = Number('{{ webtoon.total_images|default(0) }}');
+
+        if (totalImages > 0 && selectedFiles.length === 0) {
+            translateBtn.style.display = 'block';
+            translateBtn.disabled = false;
+        } else {
+            translateBtn.style.display = 'none';
+        }
+
+        const method = ocrMethodSelect ? ocrMethodSelect.value : 'google';
+        const isNano = method === 'nanobananapro';
+        if (isNano) {
+            translateText.textContent = 'Start Image Translation';
+        } else {
+            translateText.textContent = 'Start OCR';
+        }
+    }
+
+    const ocrMethodSelect = document.getElementById('ocr-method');
+    if (ocrMethodSelect) {
+        ocrMethodSelect.addEventListener('change', updateTranslateButton);
+    }
+
+    updateTranslateButton();
+
+    const chapterSelect = document.getElementById('chapter-select');
+    const newChapterNameGroup = document.getElementById('new-chapter-name-group');
+
+    if (chapterSelect) {
+        chapterSelect.addEventListener('change', function () {
+            if (newChapterNameGroup) {
+                newChapterNameGroup.style.display = this.value === 'new' ? 'block' : 'none';
+            }
+        });
+    }
+
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('image-files');
+    const previewContainer = document.getElementById('file-preview-container');
+    const previewGrid = document.getElementById('file-preview');
+    const fileCount = document.getElementById('file-count');
+    const uploadBtn = document.getElementById('upload-btn');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+    });
+
+    function handleFiles(files) {
+        selectedFiles = Array.from(files).filter(f =>
+            f.type.startsWith('image/') && f.size <= 10 * 1024 * 1024
+        );
+
+        if (selectedFiles.length === 0) {
+            window.showAlertModal('Invalid Files', 'No valid image files selected. Please select PNG, JPG, or WebP files under 10MB.', 'error');
+            return;
+        }
+
+        selectedFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+        updatePreview();
+    }
+
+    function updatePreview() {
+        previewGrid.innerHTML = '';
+
+        selectedFiles.forEach((file, idx) => {
+            const thumb = document.createElement('div');
+            thumb.className = 'preview-thumb';
+
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-btn';
+            removeBtn.textContent = '×';
+            removeBtn.onclick = () => removeFile(idx);
+
+            thumb.appendChild(img);
+            thumb.appendChild(removeBtn);
+            previewGrid.appendChild(thumb);
+        });
+
+        fileCount.textContent = selectedFiles.length;
+        previewContainer.classList.toggle('d-none', selectedFiles.length === 0);
+        uploadBtn.disabled = selectedFiles.length === 0;
+
+        updateTranslateButton();
+    }
+
+    function removeFile(idx) {
+        selectedFiles.splice(idx, 1);
+        updatePreview();
+    }
+
+    document.getElementById('clear-files').addEventListener('click', () => {
+        selectedFiles = [];
+        updatePreview();
+        fileInput.value = '';
+    });
+
+    document.getElementById('upload-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        if (selectedFiles.length === 0) return;
+
+        const uploadText = document.getElementById('upload-text');
+        const uploadSpinner = document.getElementById('upload-spinner');
+
+        uploadBtn.disabled = true;
+        uploadText.textContent = 'Uploading...';
+        uploadSpinner.classList.remove('d-none');
+
+        const formData = new FormData();
+        selectedFiles.forEach(file => formData.append('images', file));
+
+        if (readingMode === 'webtoon' && chapterSelect) {
+            const chapterTarget = chapterSelect.value;
+            if (chapterTarget === 'new') {
+                const chapterName = document.getElementById('chapter-name').value;
+                if (chapterName) {
+                    formData.append('chapter_name', chapterName);
+                }
+            } else {
+                formData.append('chapter_number', chapterTarget);
+            }
+        }
+
+        formData.append('ocr_method', document.getElementById('ocr-method').value);
+        formData.append('overwrite_text', 'true');
+
+        try {
+            const response = await window.fetchWithCSRF(`/api/webtoon/${jobId}/upload`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                window.showAlertModal('Upload Complete', `Successfully uploaded ${data.uploaded_count} images!`, 'success');
+
+                setTimeout(() => {
+                    updateTranslateButton();
+                }, 100);
+                window.location.reload();
+            } else {
+                throw new Error(data.error || 'Upload failed');
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            window.showAlertModal('Error', error.message, 'error');
+        } finally {
+            uploadBtn.disabled = false;
+            uploadText.textContent = 'Upload Images';
+            uploadSpinner.classList.add('d-none');
+        }
+    });
+
+    document.getElementById('translate-btn').addEventListener('click', async () => {
+        const translateBtn = document.getElementById('translate-btn');
+        const translateText = document.getElementById('translate-text');
+        const translateSpinner = document.getElementById('translate-spinner');
+        const ocrMethodSelect = document.getElementById('ocr-method');
+        const method = ocrMethodSelect ? ocrMethodSelect.value : 'google';
+        const isNano = method === 'nanobananapro';
+
+        translateBtn.disabled = true;
+        translateText.textContent = isNano ? 'Starting image translation...' : 'Starting...';
+        translateSpinner.classList.remove('d-none');
+
+        try {
+
+            const skipTranslation = !isNano;
+
+            const response = await window.fetchWithCSRF(`/api/webtoon/${jobId}/start-translation`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ocr_method: method,
+                    overwrite_text: true,
+                    skip_translation: skipTranslation
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                const action = skipTranslation ? 'OCR Scan' : 'Translation';
+                window.showAlertModal(`${action} Started`, `${action} started! Redirecting to view page...`, 'success');
+                window.location.href = `/webtoon/${jobId}`;
+            } else {
+                throw new Error(data.error || 'Failed to start translation');
+            }
+        } catch (error) {
+            console.error('Translation error:', error);
+            window.showAlertModal('Error', error.message, 'error');
+            translateBtn.disabled = false;
+            updateTranslateButton();
+            translateSpinner.classList.add('d-none');
+        }
+    });
+</script>
+{% endblock %}

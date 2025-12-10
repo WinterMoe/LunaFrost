@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Translation Queue - Admin - LunaFrost{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header style="margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+                <h1>⚙️ Translation Queue</h1>
+                <p style="color: var(--text-secondary); margin-top: 10px;">
+                    Monitor and control background translation tasks
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="refresh-btn" class="btn btn-secondary" onclick="loadQueueStatus()">
+                    🔄 Refresh
+                </button>
+                <button class="btn btn-danger" onclick="purgeQueue()">
+                    🗑️ Clear Queue
+                </button>
+                <a href="/admin" class="btn btn-secondary">← Back to Dashboard</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="stats-grid"
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        <div class="stat-card">
+            <div class="stat-icon">🤖</div>
+            <div class="stat-value" id="workers-online">-</div>
+            <div class="stat-label">Worker Nodes</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-value" id="total-concurrency">-</div>
+            <div class="stat-label">Total Threads</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">▶️</div>
+            <div class="stat-value" id="active-count">-</div>
+            <div class="stat-label">Active Tasks</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-value" id="queued-count">-</div>
+            <div class="stat-label">Queued Tasks</div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-bottom: 30px;">
+        <h3>▶️ Currently Executing</h3>
+        <div id="active-tasks-container">
+            <p style="color: var(--text-secondary); padding: 20px; text-align: center;">No active tasks</p>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h3>⏳ Waiting in Queue</h3>
+        <div id="queued-tasks-container">
+            <p style="color: var(--text-secondary); padding: 20px; text-align: center;">Queue is empty</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-light);
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+    }
+
+    .stat-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: var(--text-primary);
+        margin-bottom: 5px;
+    }
+
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .panel {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-light);
+        border-radius: 8px;
+        padding: 20px;
+    }
+
+    .panel h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 1.1rem;
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 10px;
+    }
+
+    .task-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px;
+        border-bottom: 1px solid var(--border-light);
+        background: var(--bg-primary);
+        margin-bottom: 10px;
+        border-radius: 6px;
+    }
+
+    .task-item:last-child {
+        margin-bottom: 0;
+    }
+
+    .task-info {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .task-title {
+        font-weight: 600;
+        font-size: 1rem;
+    }
+
+    .task-meta {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        display: flex;
+        gap: 15px;
+    }
+
+    .badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .badge-active {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+
+    .badge-queued {
+        background: #fff3e0;
+        color: #f57c00;
+    }
+
+    .btn-sm {
+        padding: 4px 10px;
+        font-size: 0.85rem;
+    }
+</style>
+
+<script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        loadQueueStatus();
+
+        setInterval(loadQueueStatus, 5000);
+    });
+
+    async function loadQueueStatus() {
+        const btn = document.getElementById('refresh-btn');
+        btn.innerHTML = '⏳...';
+
+        try {
+            const res = await fetch('/admin/api/queue/status');
+            const { data } = await res.json();
+
+            document.getElementById('workers-online').textContent = data.stats.workers_online;
+            document.getElementById('total-concurrency').textContent = data.stats.total_concurrency;
+            document.getElementById('active-count').textContent = data.stats.active_count;
+            document.getElementById('queued-count').textContent = data.stats.queued_count;
+
+            const activeContainer = document.getElementById('active-tasks-container');
+            const activeTasks = data.tasks.filter(t => t.state === 'active');
+
+            if (activeTasks.length === 0) {
+                activeContainer.innerHTML = '<p style="color: var(--text-secondary); padding: 20px; text-align: center;">No active tasks</p>';
+            } else {
+                activeContainer.innerHTML = activeTasks.map(task => renderTaskItem(task)).join('');
+            }
+
+            const queuedContainer = document.getElementById('queued-tasks-container');
+            const queuedTasks = data.tasks.filter(t => t.state === 'queued' || t.state === 'scheduled');
+
+            if (queuedTasks.length === 0) {
+                queuedContainer.innerHTML = '<p style="color: var(--text-secondary); padding: 20px; text-align: center;">Queue is empty</p>';
+            } else {
+                queuedContainer.innerHTML = queuedTasks.map(task => renderTaskItem(task)).join('');
+            }
+
+        } catch (e) {
+            console.error("Error loading queue:", e);
+        } finally {
+            btn.innerHTML = '🔄 Refresh';
+        }
+    }
+
+    function renderTaskItem(task) {
+        const isTranslation = task.type === 'translation';
+        const badgeClass = task.state === 'active' ? 'badge-active' : 'badge-queued';
+
+        return `
+        <div class="task-item">
+            <div class="task-info">
+                <div class="task-title">
+                    <span class="badge ${badgeClass}">${task.state}</span>
+                    ${task.details}
+                </div>
+                <div class="task-meta">
+                    <span>🆔 ${task.id.substring(0, 8)}...</span>
+                    <span>🤖 ${task.worker || 'Pending'}</span>
+                    ${task.time_start ? `<span>⏱️ Started: ${new Date(task.time_start * 1000).toLocaleTimeString()}</span>` : ''}
+                </div>
+            </div>
+            <div>
+                <button class="btn btn-danger btn-sm" onclick="cancelTask('${task.id}')">
+                    ❌ Cancel
+                </button>
+            </div>
+        </div>
+    `;
+    }
+
+    async function cancelTask(taskId) {
+        if (!confirm('Are you sure you want to cancel this task?')) return;
+
+        try {
+            const res = await window.fetchWithCSRF(`/admin/api/queue/cancel/${taskId}`, { method: 'POST' });
+            const data = await res.json();
+
+            if (data.success) {
+                window.showAlertModal('Success', 'Task cancelled', 'success');
+                loadQueueStatus();
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            window.showAlertModal('Error', `Failed to cancel task: ${e.message}`, 'error');
+        }
+    }
+
+    async function purgeQueue() {
+        if (!confirm('⚠️ WARNING: This will remove ALL pending tasks from the queue. Active tasks will continue running. Are you sure?')) return;
+
+        try {
+            const res = await window.fetchWithCSRF('/admin/api/queue/purge', { method: 'POST' });
+            const data = await res.json();
+
+            if (data.success) {
+                window.showAlertModal('Success', 'Queue purged successfully', 'success');
+                loadQueueStatus();
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            window.showAlertModal('Error', `Failed to purge queue: ${e.message}`, 'error');
+        }
+    }
+</script>
+{% endblock %}

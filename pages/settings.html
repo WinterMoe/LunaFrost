@@ -1,0 +1,696 @@
+{% extends "base.html" %}
+
+{% block title %}Global Settings - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<style>
+    .collapsible-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .collapsible-header:hover {
+        opacity: 0.8;
+    }
+
+    .collapsible-header h2 {
+        margin: 0;
+    }
+
+    .collapse-icon {
+        font-size: 1.2rem;
+        transition: transform 0.3s ease;
+    }
+
+    .collapse-icon.collapsed {
+        transform: rotate(-90deg);
+    }
+
+    .collapsible-content {
+        overflow: hidden;
+        transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out;
+        max-height: 2000px;
+        opacity: 1;
+    }
+
+    .collapsible-content.collapsed {
+        max-height: 0;
+        opacity: 0;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+</style>
+
+<div class="container">
+    <header>
+        <div style="margin-bottom: 20px;">
+            <a href="/" class="btn btn-primary">← Back to Novels</a>
+        </div>
+        <h1>⚙️ Settings</h1>
+    </header>
+
+    <div id="alert-container"></div>
+
+    <div class="settings-card">
+        <h2>🎨 Appearance & Display</h2>
+
+        <div class="toggle-group">
+
+            <div class="toggle-item">
+                <div class="toggle-info">
+                    <strong>📚 Show Novel Covers</strong>
+                    <p class="help-text">Display cover images for novels on the main page</p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="show-covers" {% if settings.get('show_covers', True) %}checked{% endif
+                        %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div class="toggle-item">
+                <div class="toggle-info">
+                    <strong>📋 Default Chapter Order</strong>
+                    <p class="help-text">Choose default sorting for all novels</p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <label class="sort-radio-label">
+                        <input type="radio" name="default-sort-order" value="asc" {% if
+                            settings.get('default_sort_order', 'asc' )=='asc' %}checked{% endif %}>
+                        <span class="sort-radio-text">Ascending (1→∞)</span>
+                    </label>
+                    <label class="sort-radio-label">
+                        <input type="radio" name="default-sort-order" value="desc" {% if
+                            settings.get('default_sort_order')=='desc' %}checked{% endif %}>
+                        <span class="sort-radio-text">Descending (∞→1)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="toggle-item">
+                <div class="toggle-info">
+                    <strong>💰 Show Translation Cost</strong>
+                    <p class="help-text">Display token usage and cost after translating chapters</p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="show-translation-cost" {% if settings.get('show_translation_cost', True)
+                        %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-card">
+        <div class="collapsible-header" onclick="toggleCollapse('ai-api-content', 'ai-api-icon')">
+            <h2>🔑 AI API Configuration</h2>
+            <span class="collapse-icon collapsed" id="ai-api-icon">▼</span>
+        </div>
+
+        <div class="collapsible-content collapsed" id="ai-api-content" style="padding-top: 20px;">
+            <div class="form-group">
+                <label for="provider-select">AI Provider</label>
+                <select id="provider-select">
+                    <option value="openrouter">OpenRouter (Multiple Models)</option>
+                    <option value="openai">OpenAI (ChatGPT)</option>
+                    <option value="google">Google Gemini</option>
+                    <option value="deepl">DeepL (Literal, no prompt)</option>
+                </select>
+                <p class="help-text">Select your preferred AI provider. API keys and models are stored separately for
+                    each
+                    provider.</p>
+            </div>
+
+            <div id="openrouter-fields" class="provider-fields">
+                <div class="form-group">
+                    <label for="openrouter-key">OpenRouter API Key</label>
+                    <input type="password" id="openrouter-key" placeholder="sk-or-v1-...">
+                    <p class="help-text">Get your key from <a href="https://openrouter.ai/keys"
+                            target="_blank">OpenRouter</a></p>
+                </div>
+                <div class="form-group">
+                    <label for="openrouter-model">Model</label>
+                    <input type="text" id="openrouter-model" placeholder="e.g., google/gemini-2.0-flash-001"
+                        list="openrouter-models">
+                    <datalist id="openrouter-models">
+                        {% for model in settings.get('available_models', {}).get('openrouter', []) %}
+                        <option value="{{ model }}">
+                            {% endfor %}
+                    </datalist>
+                    <p class="help-text">Enter any OpenRouter model.</p>
+                </div>
+            </div>
+
+            <div id="openai-fields" class="provider-fields" style="display: none;">
+                <div class="form-group">
+                    <label for="openai-key">OpenAI API Key</label>
+                    <input type="password" id="openai-key" placeholder="sk-...">
+                    <p class="help-text">Get your key from <a href="https://platform.openai.com/api-keys"
+                            target="_blank">OpenAI</a></p>
+                </div>
+                <div class="form-group">
+                    <label for="openai-model">Model</label>
+                    <select id="openai-model">
+                        {% for model in settings.get('available_models', {}).get('openai', []) %}
+                        <option value="{{ model }}" {% if settings.get('provider_models', {}).get('openai')==model
+                            %}selected{% endif %}>{{ model }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="help-text">Choose a GPT model.</p>
+                </div>
+            </div>
+
+            <div id="google-fields" class="provider-fields" style="display: none;">
+                <div class="form-group">
+                    <label for="google-key">Google API Key</label>
+                    <input type="password" id="google-key" placeholder="AIza...">
+                    <p class="help-text">Get your key from <a href="https://makersuite.google.com/app/apikey"
+                            target="_blank">Google AI Studio</a></p>
+                </div>
+                <div class="form-group">
+                    <label for="google-model">Model</label>
+                    <select id="google-model">
+                        {% for model in settings.get('available_models', {}).get('google', []) %}
+                        <option value="{{ model }}" {% if settings.get('provider_models', {}).get('google')==model
+                            %}selected{% endif %}>{{ model }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="help-text">Choose a Gemini model.</p>
+                </div>
+            </div>
+
+            <div id="deepl-fields" class="provider-fields" style="display: none;">
+                <div class="form-group">
+                    <label for="deepl-key">DeepL API Key</label>
+                    <input type="password" id="deepl-key" placeholder="deepl-auth-key..." autocomplete="off">
+                    <p class="help-text">DeepL does literal/low-prompt translations. No model selection needed.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-card">
+        <div class="collapsible-header"
+            onclick="toggleCollapse('translation-defaults-content', 'translation-defaults-icon')">
+            <h2>📝 Translation Defaults</h2>
+            <span class="collapse-icon collapsed" id="translation-defaults-icon">▼</span>
+        </div>
+        <div class="collapsible-content collapsed" id="translation-defaults-content" style="padding-top: 20px;">
+            <div class="form-group">
+                <label for="global-custom-prompt-suffix">Global Custom Translation Prompt Suffix</label>
+                <p class="help-text">
+                    This text will be appended to the system prompt for ALL translations (novels and webtoons) unless
+                    overridden by per-item settings.
+                </p>
+                <textarea id="global-custom-prompt-suffix" class="form-control" rows="4"
+                    placeholder="e.g. Always use formal honorifics.">{{ settings.custom_prompt_suffix or '' }}</textarea>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="settings-card">
+        <div class="collapsible-header" onclick="toggleCollapse('ocr-api-content', 'ocr-api-icon')">
+            <h2>🔍 OCR API Configuration</h2>
+            <span class="collapse-icon collapsed" id="ocr-api-icon">▼</span>
+        </div>
+
+        <div class="collapsible-content collapsed" id="ocr-api-content" style="padding-top: 20px;">
+            <div class="form-group">
+                <label for="default-ocr-method">Default OCR Method</label>
+                <select id="default-ocr-method" class="form-control">
+                    <option value="google">Google Cloud Vision (Requires API Key)</option>
+                    <option value="azure">Azure Computer Vision (Requires API Key)</option>
+                    <option value="nanobananapro">Nano Banana Pro (Best Quality - Requires API Key)</option>
+                </select>
+                <p class="help-text">Choose your preferred OCR method for webtoon/manga translation</p>
+            </div>
+
+            
+            <div class="settings-card" style="margin-top: 20px; background: var(--bg-secondary, #f8f9fa);">
+                <h3>Google Cloud Vision API</h3>
+                <div class="form-group">
+                    <label for="google-ocr-api-key">API Key or Service Account JSON File Path</label>
+                    <input type="password" id="google-ocr-api-key" class="form-control"
+                        placeholder="Enter API key or /path/to/service-account-key.json" autocomplete="off">
+                    <p class="help-text">
+                        <strong>Option 1: Simple API Key (Recommended):</strong><br>
+                        1. Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud
+                            Console</a><br>
+                        2. Enable "Cloud Vision API" (APIs & Services → Enable APIs → Search "Cloud Vision API")<br>
+                        3. Go to "APIs & Services" → "Credentials" → "Create Credentials" → "API Key"<br>
+                        4. Copy the API key and paste it above<br>
+                        <strong>Free tier:</strong> 1,000 requests/month
+                    </p>
+                </div>
+            </div>
+
+            
+            <div class="settings-card" style="margin-top: 20px; background: var(--bg-secondary, #f8f9fa);">
+                <h3>Azure Computer Vision API</h3>
+                <div class="form-group">
+                    <label for="azure-ocr-api-key">API Key</label>
+                    <input type="password" id="azure-ocr-api-key" class="form-control"
+                        placeholder="Enter your Azure API key" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="azure-ocr-endpoint">Endpoint</label>
+                    <input type="text" id="azure-ocr-endpoint" class="form-control"
+                        placeholder="https://your-resource.cognitiveservices.azure.com/">
+                    <p class="help-text">
+                        Get from <a href="https://portal.azure.com/" target="_blank">Azure Portal</a> → Create "Computer
+                        Vision" resource → "Keys and Endpoint"<br>
+                        <strong>Free tier:</strong> 5,000 requests/month
+                    </p>
+                </div>
+            </div>
+
+            
+            <div class="settings-card" style="margin-top: 20px; background: var(--bg-secondary, #f8f9fa);">
+                <h3>Nano Banana Pro (All-in-One Translation)</h3>
+                <p class="help-text">Highest quality translations with automatic text rendering.</p>
+
+                <div class="form-group">
+                    <label>API Source</label>
+                    <div style="display: flex; gap: 20px; margin-top: 10px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="radio" name="nanobananapro-api-source" value="gemini" id="nanobananapro-gemini"
+                                style="margin-right: 8px;" checked>
+                            <span><strong>Gemini API Key</strong></span>
+                        </label>
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="radio" name="nanobananapro-api-source" value="openrouter"
+                                id="nanobananapro-openrouter" style="margin-right: 8px;">
+                            <span><strong>OpenRouter API Key</strong> (from AI API above)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="gemini-ocr-api-key">Gemini API Key</label>
+                    <input type="password" id="gemini-ocr-api-key" class="form-control"
+                        placeholder="Enter your Gemini API key" autocomplete="off">
+                    <p class="help-text">
+                        Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank">Google
+                            AI Studio</a><br>
+                        Only needed if using "Gemini API Key" option above
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="settings-card">
+        <h2>🧠 Thinking Mode</h2>
+        <div class="toggle-group">
+            <div class="toggle-item">
+                <div class="toggle-info">
+                    <strong>Enable Thinking Mode</strong>
+                    <p class="help-text">Adds a "Think+" button to the reader for high-quality, reasoning-based
+                        translation (slower & more expensive).</p>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="thinking-mode-enabled" {% if settings.get('thinking_mode_enabled', False)
+                        %}checked{% endif %}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div id="thinking-mode-config"
+            style="margin-top: 20px;{% if not settings.get('thinking_mode_enabled', False) %} display: none;{% endif %}">
+            <div class="form-group">
+                <label>Thinking Model (for current provider)</label>
+
+                <div id="openrouter-thinking-model-group" class="thinking-model-group">
+                    <input type="text" id="openrouter-thinking-model" placeholder="e.g., openai/o1-preview"
+                        value="{{ settings.get('thinking_mode_models', {}).get('openrouter', '') }}">
+                    <p class="help-text">Enter a reasoning model ID (e.g., <code>openai/o1-preview</code>,
+                        <code>anthropic/claude-3-opus</code>)
+                    </p>
+                </div>
+
+                <div id="openai-thinking-model-group" class="thinking-model-group" style="display: none;">
+                    <select id="openai-thinking-model">
+                        <option value="o1-preview" {% if settings.get('thinking_mode_models',
+                            {}).get('openai')=='o1-preview' %}selected{% endif %}>o1-preview</option>
+                        <option value="o1-mini" {% if settings.get('thinking_mode_models', {}).get('openai')=='o1-mini'
+                            %}selected{% endif %}>o1-mini</option>
+                    </select>
+                    <p class="help-text">Choose an OpenAI reasoning model.</p>
+                </div>
+
+                <div id="google-thinking-model-group" class="thinking-model-group" style="display: none;">
+                    <input type="text" id="google-thinking-model" placeholder="e.g., gemini-2.0-flash-thinking-exp"
+                        value="{{ settings.get('thinking_mode_models', {}).get('google', '') }}">
+                    <p class="help-text">Enter a Google thinking-enabled model.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 30px;">
+        <button id="save-settings-btn" class="btn btn-primary btn-large">💾 Save API Settings</button>
+    </div>
+</div>
+
+<script id="settings-data" type="application/json">{{ settings|tojson }}</script>
+
+<script>
+
+    function toggleCollapse(contentId, iconId) {
+        const content = document.getElementById(contentId);
+        const icon = document.getElementById(iconId);
+
+        if (content.classList.contains('collapsed')) {
+            content.classList.remove('collapsed');
+            icon.classList.remove('collapsed');
+        } else {
+            content.classList.add('collapsed');
+            icon.classList.add('collapsed');
+        }
+    }
+
+    const thinkingModeInput = document.getElementById('thinking-mode-enabled');
+    const thinkingModeConfig = document.getElementById('thinking-mode-config');
+    const thinkingModelGroups = document.querySelectorAll('.thinking-model-group');
+
+    function updateThinkingModelVisibility() {
+        thinkingModelGroups.forEach(group => group.style.display = 'none');
+        const selectedProvider = providerSelect.value;
+        const group = document.getElementById(`${selectedProvider}-thinking-model-group`);
+        if (group) group.style.display = 'block';
+    }
+
+    const providerSelect = document.getElementById('provider-select');
+    const providerFields = document.querySelectorAll('.provider-fields');
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
+    const alertContainer = document.getElementById('alert-container');
+    const showCoversInput = document.getElementById('show-covers');
+    const sortRadios = document.querySelectorAll('input[name="default-sort-order"]');
+    const showTranslationCostInput = document.getElementById('show-translation-cost');
+
+    providerSelect.addEventListener('change', () => {
+        providerFields.forEach(field => field.style.display = 'none');
+        document.getElementById(`${providerSelect.value}-fields`).style.display = 'block';
+        updateThinkingModelVisibility();
+    });
+
+    thinkingModeInput.addEventListener('change', () => {
+        thinkingModeConfig.style.display = thinkingModeInput.checked ? 'block' : 'none';
+        autoSaveToggleSetting('Thinking Mode', thinkingModeInput.checked);
+    });
+
+    updateThinkingModelVisibility();
+    if (!thinkingModeInput.checked) {
+        thinkingModeConfig.style.display = 'none';
+    }
+
+    const settings = JSON.parse(document.getElementById('settings-data').textContent);
+
+    ['openrouter', 'openai', 'google', 'deepl'].forEach(provider => {
+        const keyInput = document.getElementById(`${provider}-key`);
+        if (keyInput) {
+            keyInput.value = settings.api_keys[provider] || '';
+        }
+    });
+    ['openrouter', 'openai', 'google', 'deepl'].forEach(provider => {
+        const modelInput = document.getElementById(`${provider}-model`);
+        if (modelInput) {
+            modelInput.value = settings.provider_models[provider] || '';
+        }
+    });
+
+    ['openrouter', 'openai', 'google', 'deepl'].forEach(provider => {
+        const thinkingInput = document.getElementById(`${provider}-thinking-model`);
+        if (thinkingInput) {
+            thinkingInput.value = settings.thinking_mode_models[provider] || '';
+        }
+    });
+
+    providerSelect.value = settings.selected_provider || 'openrouter';
+    providerSelect.dispatchEvent(new Event('change'));
+
+    loadOCRSettings();
+
+    async function autoSaveToggleSetting(settingName, value) {
+        const sortOrder = document.querySelector('input[name="default-sort-order"]:checked').value;
+        const isDarkMode = document.body.classList.contains('dark-mode');
+
+        const updatedSettings = {
+            selected_provider: settings.selected_provider || 'openrouter',
+            api_keys: settings.api_keys,
+            provider_models: settings.provider_models,
+            show_covers: showCoversInput.checked,
+            dark_mode: isDarkMode,
+            default_sort_order: sortOrder,
+            show_translation_cost: showTranslationCostInput.checked,
+            thinking_mode_enabled: thinkingModeInput.checked,
+            thinking_mode_models: settings.thinking_mode_models,
+            available_models: settings.available_models
+        };
+
+        try {
+            const response = await fetchWithCSRF('/api/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatedSettings)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showAlert(`${settingName} saved!`, 'success');
+            } else {
+                showAlert('Error: ' + (data.error || 'Failed to save settings'), 'error');
+            }
+        } catch (error) {
+            showAlert('Error: ' + error.message, 'error');
+        }
+    }
+
+    showTranslationCostInput.addEventListener('change', () => {
+        autoSaveToggleSetting('Show translation cost', showTranslationCostInput.checked);
+    });
+
+    showCoversInput.addEventListener('change', () => {
+        autoSaveToggleSetting('Show covers', showCoversInput.checked);
+    });
+
+    sortRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            autoSaveToggleSetting('Default chapter order', radio.value);
+        });
+    });
+
+    async function saveAllSettings(settingName = 'Settings') {
+        const selectedProvider = providerSelect.value;
+        const apiKeys = {};
+        const providerModels = {};
+        const thinkingModeModels = {};
+
+        ['openrouter', 'openai', 'google', 'deepl'].forEach(provider => {
+            const keyInput = document.getElementById(`${provider}-key`);
+            apiKeys[provider] = keyInput ? keyInput.value.trim() : '';
+
+            const modelInput = document.getElementById(`${provider}-model`);
+            providerModels[provider] = modelInput ? modelInput.value.trim() : '';
+
+            const thinkingInput = document.getElementById(`${provider}-thinking-model`);
+            if (thinkingInput) {
+                thinkingModeModels[provider] = thinkingInput.value.trim();
+            }
+        });
+
+        const sortOrder = document.querySelector('input[name="default-sort-order"]:checked').value;
+        const isDarkMode = document.body.classList.contains('dark-mode');
+
+        const updatedSettings = {
+            ...settings,
+            selected_provider: selectedProvider,
+            api_keys: apiKeys,
+            provider_models: providerModels,
+            show_covers: showCoversInput.checked,
+            dark_mode: isDarkMode,
+            default_sort_order: sortOrder,
+            show_translation_cost: showTranslationCostInput.checked,
+            thinking_mode_enabled: thinkingModeInput.checked,
+            thinking_mode_models: thinkingModeModels,
+            custom_prompt_suffix: document.getElementById('global-custom-prompt-suffix').value
+        };
+
+        try {
+            const response = await fetchWithCSRF('/api/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatedSettings)
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                if (settingName) {
+                    showAlert(`${settingName} saved!`, 'success');
+                }
+                return true;
+            } else {
+                showAlert('Error: ' + (data.error || 'Failed to save settings'), 'error');
+                return false;
+            }
+        } catch (error) {
+            showAlert('Error: ' + error.message, 'error');
+            return false;
+        }
+    }
+
+    saveSettingsBtn.addEventListener('click', async () => {
+        try {
+
+            const aiSuccess = await saveAllSettings(null);
+
+            await saveOCRSettings();
+
+            showAlert('All settings saved successfully!', 'success');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } catch (error) {
+            showAlert('Error saving settings: ' + error.message, 'error');
+        }
+    });
+
+    function showAlert(message, type) {
+        alertContainer.innerHTML = `
+            <div class="alert alert-${type}">
+                ${message}
+            </div>
+        `;
+
+        setTimeout(() => {
+            alertContainer.innerHTML = '';
+        }, 3000);
+    }
+
+    async function loadOCRSettings() {
+        try {
+            const response = await fetch('/api/webtoon/settings');
+            const data = await response.json();
+
+            const ocrMethodSelect = document.getElementById('default-ocr-method');
+            if (ocrMethodSelect) {
+                ocrMethodSelect.value = data.default_ocr_method || 'google';
+            }
+
+            const apiSource = data.nanobananapro_api_source || 'gemini';
+            if (apiSource === 'openrouter') {
+                document.getElementById('nanobananapro-openrouter').checked = true;
+            } else {
+                document.getElementById('nanobananapro-gemini').checked = true;
+            }
+
+            if (data.google_api_key_configured) {
+                const googleField = document.getElementById('google-ocr-api-key');
+                if (googleField) {
+                    googleField.value = '••••••••••••••••';
+                    googleField.placeholder = 'API key is configured ✓';
+                    googleField.style.borderColor = '#48bb78';
+                }
+            }
+            if (data.azure_api_key_configured) {
+                const azureKeyField = document.getElementById('azure-ocr-api-key');
+                if (azureKeyField) {
+                    azureKeyField.value = '••••••••••••••••';
+                    azureKeyField.placeholder = 'API key is configured ✓';
+                    azureKeyField.style.borderColor = '#48bb78';
+                }
+            }
+            if (data.azure_endpoint) {
+                const azureEndpointField = document.getElementById('azure-ocr-endpoint');
+                if (azureEndpointField) {
+                    azureEndpointField.value = data.azure_endpoint;
+                    azureEndpointField.style.borderColor = '#48bb78';
+                }
+            }
+            if (data.gemini_api_key_configured) {
+                const geminiField = document.getElementById('gemini-ocr-api-key');
+                if (geminiField) {
+                    geminiField.value = '••••••••••••••••';
+                    geminiField.placeholder = 'API key is configured ✓';
+                    geminiField.style.borderColor = '#48bb78';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading OCR settings:', error);
+        }
+    }
+
+    async function saveOCRSettings() {
+        const nanobananaproSource = document.querySelector('input[name="nanobananapro-api-source"]:checked');
+
+        const formData = {
+            default_ocr_method: document.getElementById('default-ocr-method').value,
+            nanobananapro_api_source: nanobananaproSource ? nanobananaproSource.value : 'gemini'
+        };
+
+        const googleKey = document.getElementById('google-ocr-api-key').value.trim();
+        if (googleKey && googleKey !== '••••••••••••••••') formData.google_api_key = googleKey;
+
+        const azureKey = document.getElementById('azure-ocr-api-key').value.trim();
+        if (azureKey && azureKey !== '••••••••••••••••') formData.azure_api_key = azureKey;
+
+        const azureEndpoint = document.getElementById('azure-ocr-endpoint').value.trim();
+        if (azureEndpoint) formData.azure_endpoint = azureEndpoint;
+
+        const geminiKey = document.getElementById('gemini-ocr-api-key').value.trim();
+        if (geminiKey && geminiKey !== '••••••••••••••••') formData.gemini_api_key = geminiKey;
+
+        try {
+            const response = await fetchWithCSRF('/api/webtoon/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Failed to save OCR settings');
+            }
+
+            if (googleKey && googleKey !== '••••••••••••••••') {
+                const googleField = document.getElementById('google-ocr-api-key');
+                googleField.value = '••••••••••••••••';
+                googleField.placeholder = 'API key is configured ✓';
+                googleField.style.borderColor = '#48bb78';
+            }
+            if (azureKey && azureKey !== '••••••••••••••••') {
+                const azureField = document.getElementById('azure-ocr-api-key');
+                azureField.value = '••••••••••••••••';
+                azureField.placeholder = 'API key is configured ✓';
+                azureField.style.borderColor = '#48bb78';
+            }
+            if (azureEndpoint) {
+                document.getElementById('azure-ocr-endpoint').style.borderColor = '#48bb78';
+            }
+            if (geminiKey && geminiKey !== '••••••••••••••••') {
+                const geminiField = document.getElementById('gemini-ocr-api-key');
+                geminiField.value = '••••••••••••••••';
+                geminiField.placeholder = 'API key is configured ✓';
+                geminiField.style.borderColor = '#48bb78';
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error saving OCR settings:', error);
+            throw error;
+        }
+    }
+</script>
+
+<script src="{{ url_for('static', filename='js/reading-preferences.js') }}"></script>
+{% endblock %}

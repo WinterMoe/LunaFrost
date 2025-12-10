@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Sign Up - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <img src="{{ url_for('static', filename='images/logo_transparent_resized.png') }}"
+                alt="LunaFrost Translator">
+        </div>
+
+        <form id="signup-form" class="auth-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required minlength="3">
+                <p style="font-size: 0.85rem; color: #718096; margin-top: 5px;">At least 3 characters</p>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" required>
+                <p style="font-size: 0.85rem; color: #718096; margin-top: 5px; visibility: hidden;">Placeholder</p>
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required minlength="8">
+                <p style="font-size: 0.85rem; color: #718096; margin-top: 5px;">At least 8 characters</p>
+            </div>
+
+            <div class="form-group">
+                <label for="password-confirm">Confirm Password</label>
+                <input type="password" id="password-confirm" name="password_confirm" required>
+            </div>
+
+            <div id="error-message" class="alert alert-error" style="display: none;"></div>
+
+            <button type="submit" class="btn btn-primary btn-large" style="width: 100%;">
+                ✨ Create Account
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            Already have an account? <a href="/auth/login">Login here</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const username = document.getElementById('username').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        const passwordConfirm = document.getElementById('password-confirm').value;
+        const errorDiv = document.getElementById('error-message');
+
+        try {
+            const response = await fetchWithCSRF('/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, password, password_confirm: passwordConfirm })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                window.location.href = data.redirect;
+            } else {
+                errorDiv.textContent = data.error || 'Sign up failed';
+                errorDiv.style.display = 'block';
+            }
+        } catch (error) {
+            errorDiv.textContent = 'An error occurred. Please try again.';
+            errorDiv.style.display = 'block';
+        }
+    });
+</script>
+{% endblock %}

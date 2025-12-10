@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}{{ get_display_title(novel) }} - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header>
+        <a href="/" class="btn btn-primary">← Back to Novels</a>
+        <a href="/novel/{{ novel_id }}/settings" class="btn btn-secondary">⚙️ Novel Settings</a>
+        <div id="shared-sync-indicator" style="display: none; margin-bottom: 15px; padding: 12px; background: #e6f3ff; border: 1px solid #4a90e2; border-radius: 8px; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                <div>
+                    <span id="sync-message" style="color: #2c5282; font-weight: 500;">🔄 New chapters available!</span>
+                    <span id="sync-details" style="color: #718096; font-size: 0.9rem; margin-left: 10px;"></span>
+                </div>
+                <button id="sync-shared-btn" class="btn btn-success" style="padding: 8px 16px;">Sync Now</button>
+            </div>
+        </div>
+        <div id="shared-sync-manual" style="display: none; margin-top: 15px; margin-bottom: 15px; padding: 12px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                <div>
+                    <span style="color: #4a5568; font-weight: 500;">📚 This novel is synced with a shared source</span>
+                    <span id="sync-status-text" style="color: #718096; font-size: 0.9rem; margin-left: 10px;"></span>
+                </div>
+                <button id="check-updates-btn" class="btn btn-secondary" style="padding: 8px 16px;">Check for Updates</button>
+            </div>
+        </div>
+        <h1>{{ get_display_title(novel) }}</h1>
+        {% if novel.get('author') %}
+        <p style="color: #718096; font-size: 1rem;">By {{ novel.get('translated_author', novel.author) }}</p>
+        {% endif %}
+        {% if novel.get('tags') %}
+        <p style="color: #718096; font-size: 0.9rem;">Tags: {% for tag in novel.get('translated_tags', novel.tags) %}{{
+            tag }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+        {% endif %}
+        {% if novel.get('synopsis') %}
+        <p style="color: #4a5568; font-size: 1rem; margin-top: 15px; white-space: pre-wrap;">{{
+            novel.get('translated_synopsis', novel.synopsis) }}</p>
+        {% endif %}
+        <p style="color: #718096; margin-top: 10px;">
+            {{ count_regular_chapters(novel.chapters) }} chapters{% set bonus_count = count_bonus_chapters(novel.chapters) %}{% if bonus_count > 0 %} / {{ bonus_count }} bonus{% endif %}
+            {% if novel.glossary %}
+            • {{ novel.glossary|length }} character(s) in glossary
+            {% endif %}
+        </p>
+    </header>
+
+    
+    <div id="continue-reading-card" class="continue-reading-card hidden">
+        <div class="continue-reading-content">
+            <div class="continue-reading-info">
+                <h3>📖 Continue Reading</h3>
+                <p id="continue-reading-text">Chapter X: Title</p>
+            </div>
+            <div class="continue-reading-actions">
+                <a id="continue-reading-link" href="#" class="btn btn-success">Continue Reading →</a>
+                <button id="clear-progress-btn" class="btn btn-secondary">Clear Progress</button>
+            </div>
+        </div>
+    </div>
+
+    
+    <div id="bulk-actions-toolbar" class="bulk-actions-toolbar"
+        style="display: none; margin-bottom: 20px; padding: 15px; background: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-light); display: flex; align-items: center; gap: 15px;">
+        <button id="select-all-btn" class="btn btn-secondary" style="padding: 8px 16px;">Select All</button>
+        <button id="deselect-all-btn" class="btn btn-secondary" style="padding: 8px 16px; display: none;">Deselect
+            All</button>
+        <button id="delete-selected-btn" class="btn btn-danger" style="padding: 8px 16px;">🗑️ Delete Selected</button>
+        <span id="selected-count" style="color: var(--text-secondary); font-weight: 500;">0 selected</span>
+    </div>
+
+    <div class="chapter-list">
+        {% for chapter in novel.chapters %}
+        {% if chapter %}
+        <div class="chapter-item" data-chapter-number="{{ chapter.get('chapter_number', loop.index) }}"
+            data-chapter-index="{{ loop.index0 }}" {% if chapter.get('is_bonus') %}data-is-bonus="true" {% endif %}>
+            <input type="checkbox" class="chapter-checkbox" data-chapter-index="{{ loop.index0 }}"
+                style="margin-right: 15px; width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent-primary);">
+            <div class="chapter-title">
+                <h3>
+                    {% if chapter.get('is_bonus') or chapter.get('chapter_number') == 'BONUS' %}
+                    <span class="bonus-badge">🎁 BONUS</span>
+                    {{ chapter.get('translated_title', chapter.title) }}
+                    {% else %}
+                    Chapter {{ chapter.get('chapter_number', loop.index) }}: {{ chapter.get('translated_title',
+                    chapter.title) }}
+                    {% endif %}
+                    {% if chapter.get('images') and chapter.images|length > 0 %}
+                    <span class="image-badge">🖼️ {{ chapter.images|length }}</span>
+                    {% endif %}
+                </h3>
+                {% if chapter.get('translated_title') and chapter.get('translated_title') != chapter.title %}
+                <div style="font-size: 0.85rem; color: #a0aec0; margin-top: 3px;">
+                    원제: {{ chapter.title }}
+                </div>
+                {% endif %}
+                <div class="chapter-meta">
+                    {% if chapter.source_url %}
+                    <a href="{{ chapter.source_url }}" target="_blank">Source</a> •
+                    {% endif %}
+                    Imported: {{ chapter.imported_at[:10] }}
+                </div>
+            </div>
+            <div>
+                {% if chapter.translated_text %}
+                <span class="chapter-status status-translated">✓ Translated</span>
+                {% set model = chapter.get('translation_model', '')|lower %}
+                {% if 'o1-' in model or 'thinking' in model or 'r1' in model %}
+                <span class="thinking-badge" title="Translated with Thinking Mode ({{ chapter.translation_model }})"
+                    style="cursor: help; margin-left: 5px;">⭐</span>
+                {% endif %}
+                {% if chapter.get('id') %}
+                <span class="token-badge-small" data-chapter-id="{{ chapter.id }}"
+                    style="font-size: 0.75rem; color: #718096; margin-left: 8px; display: none;">
+                    📊 <span class="token-count">-</span> tokens
+                </span>
+                {% endif %}
+                {% else %}
+                <span class="chapter-status status-untranslated">⏳ Untranslated</span>
+                {% endif %}
+                <a href="/chapter/{{ novel_id }}/number/{{ chapter.get('chapter_number', loop.index) }}"
+                    class="btn btn-primary chapter-view-btn">View</a>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
+<script id="novel-data" type="application/json">
+{
+    "novelId": {{ novel_id|tojson }}
+}
+</script>
+<script>
+    const novelId = JSON.parse(document.getElementById('novel-data').textContent).novelId;
+    const continueReadingCard = document.getElementById('continue-reading-card');
+    const continueReadingText = document.getElementById('continue-reading-text');
+    const continueReadingLink = document.getElementById('continue-reading-link');
+    const clearProgressBtn = document.getElementById('clear-progress-btn');
+
+    
+    async function loadChapterTokenUsage() {
+        const tokenBadges = document.querySelectorAll('.token-badge-small[data-chapter-id]');
+
+        for (const badge of tokenBadges) {
+            const chapterId = badge.getAttribute('data-chapter-id');
+            if (!chapterId) continue;
+
+            try {
+                const response = await fetch(`/api/chapter/${chapterId}/token-usage`);
+                const data = await response.json();
+
+                if (data.success && data.token_usage && data.token_usage.length > 0) {
+                    
+                    const totalTokens = data.token_usage.reduce((sum, record) => sum + (record.total_tokens || 0), 0);
+                    const tokenCountSpan = badge.querySelector('.token-count');
+                    if (tokenCountSpan && totalTokens > 0) {
+                        tokenCountSpan.textContent = formatNumber(totalTokens);
+                        badge.style.display = 'inline';
+                    }
+                }
+            } catch (error) {
+                console.error(`Error loading token usage for chapter ${chapterId}:`, error);
+            }
+        }
+    }
+
+    function formatNumber(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', loadChapterTokenUsage);
+    } else {
+        loadChapterTokenUsage();
+    }
+
+    
+    
+
+    
+    const bulkActionsToolbar = document.getElementById('bulk-actions-toolbar');
+    const selectAllBtn = document.getElementById('select-all-btn');
+    const deselectAllBtn = document.getElementById('deselect-all-btn');
+    const deleteSelectedBtn = document.getElementById('delete-selected-btn');
+    const selectedCountSpan = document.getElementById('selected-count');
+    const chapterCheckboxes = document.querySelectorAll('.chapter-checkbox');
+
+    
+    
+    document.addEventListener('DOMContentLoaded', () => {
+        chapterCheckboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        updateBulkActionsUI();
+    });
+
+    function updateBulkActionsUI() {
+        const selectedCheckboxes = document.querySelectorAll('.chapter-checkbox:checked');
+        const selectedCount = selectedCheckboxes.length;
+        const totalCheckboxes = chapterCheckboxes.length;
+
+        
+        selectedCountSpan.textContent = `${selectedCount} selected`;
+
+        
+        if (selectedCount > 0) {
+            bulkActionsToolbar.style.display = 'flex';
+        } else {
+            bulkActionsToolbar.style.display = 'none';
+        }
+
+        
+        if (selectedCount === totalCheckboxes && totalCheckboxes > 0) {
+            selectAllBtn.style.display = 'none';
+            deselectAllBtn.style.display = 'inline-block';
+        } else {
+            selectAllBtn.style.display = 'inline-block';
+            deselectAllBtn.style.display = 'none';
+        }
+    }
+
+    
+    chapterCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkActionsUI);
+    });
+
+    
+    selectAllBtn.addEventListener('click', () => {
+        chapterCheckboxes.forEach(cb => cb.checked = true);
+        updateBulkActionsUI();
+    });
+
+    
+    deselectAllBtn.addEventListener('click', () => {
+        chapterCheckboxes.forEach(cb => cb.checked = false);
+        updateBulkActionsUI();
+    });
+
+    
+    deleteSelectedBtn.addEventListener('click', async () => {
+        const selectedCheckboxes = document.querySelectorAll('.chapter-checkbox:checked');
+        const selectedIndices = Array.from(selectedCheckboxes).map(cb => parseInt(cb.dataset.chapterIndex));
+
+        if (selectedIndices.length === 0) return;
+
+        
+        const chapterTitles = selectedIndices.map(index => {
+            const chapterItem = document.querySelector(`.chapter-item[data-chapter-index=\"${index}\"]`);
+            const titleElement = chapterItem.querySelector('.chapter-title h3');
+            return titleElement ? titleElement.textContent.trim() : `Chapter ${index + 1}`;
+        });
+
+        const message = `Are you sure you want to delete ${selectedIndices.length} chapter(s)?\n\n${chapterTitles.slice(0, 5).join('\n')}${selectedIndices.length > 5 ? `\n... and ${selectedIndices.length - 5} more` : ''}`;
+
+        window.showConfirmationModal(
+            'Delete Chapters?',
+            message,
+            async () => {
+                try {
+                    const response = await fetchWithCSRF('/api/chapters/batch-delete', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            novel_id: novelId,
+                            chapter_indices: selectedIndices
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        window.showAlertModal('Success', `Successfully deleted ${data.deleted_count} chapter(s). Refreshing...`, 'success');
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                    } else {
+                        window.showAlertModal('Error', `Failed to delete chapters: ${data.error || 'Unknown error'}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error deleting chapters:', error);
+                    window.showAlertModal('Error', 'An error occurred while deleting chapters. Please try again.', 'error');
+                }
+            },
+            'danger'
+        );
+    });
+
+    
+    function loadReadingProgress() {
+        const progressKey = `reading_progress_${novelId}`;
+        const progress = localStorage.getItem(progressKey);
+
+        if (progress) {
+            try {
+                const data = JSON.parse(progress);
+                const chapterNumber = data.chapterNumber;
+
+                
+                const chapterItem = document.querySelector(`.chapter-item[data-chapter-number="${chapterNumber}"]`);
+
+                if (chapterItem) {
+                    const chapterTitle = chapterItem.querySelector('.chapter-title h3').textContent.trim();
+                    continueReadingText.textContent = chapterTitle;
+                    continueReadingLink.href = `/chapter/${novelId}/number/${chapterNumber}`;
+                    continueReadingCard.classList.remove('hidden');
+
+                    
+                    chapterItem.classList.add('current-reading');
+                }
+            } catch (e) {
+                console.error('Failed to load reading progress:', e);
+            }
+        }
+    }
+
+    
+    document.querySelectorAll('.chapter-view-btn').forEach((btn) => {
+        btn.addEventListener('click', function (e) {
+            const chapterItem = this.closest('.chapter-item');
+            const chapterNumber = chapterItem.getAttribute('data-chapter-number');
+            const progressKey = `reading_progress_${novelId}`;
+            const progress = {
+                chapterNumber: parseInt(chapterNumber),
+                timestamp: new Date().toISOString()
+            };
+            localStorage.setItem(progressKey, JSON.stringify(progress));
+        });
+    });
+
+    
+    clearProgressBtn.addEventListener('click', function () {
+        const progressKey = `reading_progress_${novelId}`;
+        localStorage.removeItem(progressKey);
+        continueReadingCard.classList.add('hidden');
+
+        
+        document.querySelectorAll('.chapter-item.current-reading').forEach(item => {
+            item.classList.remove('current-reading');
+        });
+    });
+
+    
+    loadReadingProgress();
+
+    const syncIndicator = document.getElementById('shared-sync-indicator');
+    const syncManual = document.getElementById('shared-sync-manual');
+    const syncBtn = document.getElementById('sync-shared-btn');
+    const checkUpdatesBtn = document.getElementById('check-updates-btn');
+    const syncMessage = document.getElementById('sync-message');
+    const syncDetails = document.getElementById('sync-details');
+    const syncStatusText = document.getElementById('sync-status-text');
+    
+    async function checkForUpdates() {
+        try {
+            const response = await fetch(`/api/novel/${encodeURIComponent(novelId)}/check-shared-updates`);
+            const data = await response.json();
+            
+            if (data.success && data.is_imported) {
+
+                syncManual.style.display = 'flex';
+                
+                if (data.has_updates) {
+
+                    syncIndicator.style.display = 'flex';
+                    syncManual.style.display = 'none';
+                    syncDetails.textContent = `${data.new_chapters_available} new chapter(s) available`;
+                } else {
+
+                    syncIndicator.style.display = 'none';
+                    syncStatusText.textContent = `Up to date (${data.imported_chapter_count} chapters)`;
+                }
+            } else {
+
+                syncIndicator.style.display = 'none';
+                syncManual.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error checking for updates:', error);
+        }
+    }
+    
+    checkUpdatesBtn.addEventListener('click', async () => {
+        checkUpdatesBtn.disabled = true;
+        checkUpdatesBtn.textContent = 'Checking...';
+        await checkForUpdates();
+        checkUpdatesBtn.disabled = false;
+        checkUpdatesBtn.textContent = 'Check for Updates';
+    });
+    
+    async function syncSharedNovel() {
+        if (syncBtn.disabled) return;
+        
+        syncBtn.disabled = true;
+        syncBtn.textContent = 'Syncing...';
+        syncMessage.textContent = '🔄 Syncing...';
+        
+        try {
+            const response = await fetchWithCSRF(`/api/novel/${encodeURIComponent(novelId)}/sync-shared`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                syncMessage.textContent = `✅ ${data.message}`;
+                syncDetails.textContent = '';
+                syncBtn.textContent = 'Synced';
+                syncBtn.disabled = true;
+                
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                syncMessage.textContent = `❌ Error: ${data.error}`;
+                syncBtn.disabled = false;
+                syncBtn.textContent = 'Sync Now';
+            }
+        } catch (error) {
+            syncMessage.textContent = `❌ Error: ${error.message}`;
+            syncBtn.disabled = false;
+            syncBtn.textContent = 'Sync Now';
+        }
+    }
+    
+    syncBtn.addEventListener('click', syncSharedNovel);
+    
+
+    checkForUpdates();
+</script>
+{% endblock %}

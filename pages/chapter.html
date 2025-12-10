@@ -1,0 +1,629 @@
+﻿{% extends "base.html" %}
+
+{% block title %}{{ chapter.get('translated_title', chapter.title) }} - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header>
+        <div class="header-top">
+            <div class="header-nav">
+                <a href="/novel/{{ novel_id }}" class="btn btn-primary">← Back to Chapters</a>
+                <a href="/novel/{{ novel_id }}/settings?chapter_number={{ chapter.get('chapter_number', chapter_index + 1) }}"
+                    class="btn btn-secondary">⚙️
+                    Chapter Settings</a>
+            </div>
+            <div class="action-buttons">
+                <button id="translate-btn" class="btn btn-success">🌐 Translate</button>
+                {% if thinking_mode_enabled %}
+                <button id="think-btn" class="btn btn-accent" title="Use Thinking Mode (Shift+T)">⭐
+                    Translate+</button>
+                {% endif %}
+                <button id="save-btn" class="btn btn-primary hidden">💾 Save Translation</button>
+                <button id="exit-compare-btn" class="btn btn-secondary hidden">❌ Exit Side-by-Side</button>
+                <button id="edit-btn" class="btn btn-warning" style="display: none;">✏️ Edit Text</button>
+                <div id="translation-status" class="translation-status hidden" style="display: none;">
+                    <span class="status-icon">⏳</span>
+                    <span class="status-text">Translation in progress...</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="token-usage-display" class="token-usage hidden" style="display: none; margin-bottom: 15px;">
+            <span class="token-badge"
+                style="background: #e6f3ff; padding: 6px 12px; border-radius: 6px; font-size: 0.9rem; color: #2d3748;">
+                📊 Tokens: <span id="input-tokens">-</span> input /
+                <span id="output-tokens">-</span> output
+                (<span id="total-tokens">-</span> total)
+            </span>
+        </div>
+        <div class="header-title">
+            <h1>
+                {{ chapter.get('translated_title', chapter.title) }}
+                {% if chapter.translation_model %}
+                {% set model = chapter.translation_model|lower %}
+                {% if 'o1-' in model or 'thinking' in model or 'r1' in model %}
+                <span class="thinking-badge" title="Translated with Thinking Mode ({{ chapter.translation_model }})"
+                    style="cursor: help; margin-left: 10px; vertical-align: middle;">
+                    ⭐ Thinking Mode
+                </span>
+                {% endif %}
+                {% endif %}
+            </h1>
+            {% if chapter.get('translated_title') and chapter.get('translated_title') != chapter.title %}
+            <div class="original-title">Original: {{ chapter.title }}</div>
+            {% endif %}
+        </div>
+    </header>
+
+    {% set is_desc = sort_order == 'desc' %}
+
+    <div class="mobile-chapter-nav">
+        {% if chapter_index > 0 %}
+        <button id="mobile-prev-btn" class="mobile-nav-btn"
+            title="{{ 'Next Chapter' if is_desc else 'Previous Chapter' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 18l-6-6 6-6" />
+            </svg>
+        </button>
+        {% else %}
+        <div class="mobile-nav-spacer"></div>
+        {% endif %}
+
+        <span class="mobile-nav-info">{{ chapter_index + 1 }} / {{ novel.chapters|length }}</span>
+
+        {% if chapter_index < novel.chapters|length - 1 %} <button id="mobile-next-btn" class="mobile-nav-btn"
+            title="{{ 'Previous Chapter' if is_desc else 'Next Chapter' }}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 18l6-6-6-6" />
+            </svg>
+            </button>
+            {% else %}
+            <div class="mobile-nav-spacer"></div>
+            {% endif %}
+    </div>
+
+    <div id="single-view" class="content-area">
+        {% if chapter.get('images') and chapter.images|length > 0 %}
+        <div style="margin-bottom: 30px; text-align: center;">
+            {% for img in chapter.images %}
+            <div style="margin-bottom: 20px;">
+                {% if img is string %}
+                <img src="/images/{{ img }}" alt="Chapter Image"
+                    style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                {% else %}
+                <img src="/images/{{ img.local_path }}" alt="{{ img.get('alt', 'Chapter Image') }}"
+                    style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                {% if img.get('alt') %}
+                <p style="color: #718096; font-size: 0.9rem; margin-top: 10px;">{{ img.alt }}</p>
+                {% endif %}
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        <div id="text-display" class="text-content">{{ chapter.korean_text }}</div>
+
+        <div class="end-chapter-nav">
+            {% if is_desc %}
+            {% if chapter_index < novel.chapters|length - 1 %} <button id="end-next-btn"
+                class="end-nav-btn end-nav-prev">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M15 18l-6-6 6-6" />
+                </svg>
+                <span>Previous Chapter</span>
+                </button>
+                {% endif %}
+
+                {% if chapter_index > 0 %}
+                <button id="end-prev-btn" class="end-nav-btn end-nav-next">
+                    <span>Next Chapter</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18l6-6-6-6" />
+                    </svg>
+                </button>
+                {% endif %}
+                {% else %}
+                {% if chapter_index > 0 %}
+                <button id="end-prev-btn" class="end-nav-btn end-nav-prev">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                    <span>Previous Chapter</span>
+                </button>
+                {% endif %}
+
+                {% if chapter_index < novel.chapters|length - 1 %} <button id="end-next-btn"
+                    class="end-nav-btn end-nav-next">
+                    <span>Next Chapter</span>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M9 18l6-6-6-6" />
+                    </svg>
+                    </button>
+                    {% endif %}
+                    {% endif %}
+        </div>
+
+        <div id="edit-area" class="hidden">
+            <textarea id="edit-textarea" class="text-content" rows="20"></textarea>
+            <div style="margin-top: 15px;">
+                <button id="save-edit-btn" class="btn btn-primary">💾 Save Changes</button>
+                <button id="cancel-edit-btn" class="btn btn-secondary">❌ Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="side-by-side-view" class="content-area side-by-side-container">
+        <div class="text-panel">
+            <h2>Original (Korean)</h2>
+            <div id="korean-panel" class="panel-content"></div>
+        </div>
+        <div class="text-panel">
+            <h2>Translation (English)</h2>
+            <div id="english-panel" class="panel-content"></div>
+        </div>
+    </div>
+
+    <button id="reading-settings-btn" class="reading-settings-fab" title="Reading Settings (Ctrl+Shift+R)"
+        aria-label="Open reading settings">
+        Aa
+    </button>
+
+    <div id="reading-settings-panel" class="reading-settings-panel" style="display: none;">
+        <div class="settings-panel-header">
+            <h3>📖 Reading Settings</h3>
+            <button class="close-panel-btn" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="settings-panel-body">
+
+            <div class="setting-group">
+                <label>Font Size: <span id="font-size-value">16px</span></label>
+                <input type="range" id="font-size-slider" min="12" max="24" value="16" step="1">
+            </div>
+
+            <div class="setting-group">
+                <label>Line Height</label>
+                <select id="line-height-select">
+                    <option value="1.2">Compact (1.2x)</option>
+                    <option value="1.5">Normal (1.5x)</option>
+                    <option value="1.8" selected>Comfortable (1.8x)</option>
+                    <option value="2.0">Spacious (2.0x)</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Font Family</label>
+                <select id="font-family-select">
+                    <option value="var(--font-serif)">Literata (Default)</option>
+                    <option value="Georgia, serif">Georgia (Serif)</option>
+                    <option value="'Open Sans', sans-serif">Open Sans (Sans)</option>
+                    <option value="'Noto Sans KR', sans-serif">Noto Sans KR (Korean)</option>
+                    <option value="'OpenDyslexic', sans-serif">OpenDyslexic (Accessibility)</option>
+                    <option value="'Courier New', monospace">Courier New (Mono)</option>
+                </select>
+            </div>
+
+            <div class="setting-group">
+                <label>Reading Width</label>
+                <div class="width-selector">
+                    <button class="width-btn" data-width="600px">Narrow</button>
+                    <button class="width-btn active" data-width="720px">Normal</button>
+                    <button class="width-btn" data-width="100%">Wide</button>
+                </div>
+            </div>
+
+            <div class="setting-group">
+                <label>Text Alignment</label>
+                <div class="alignment-selector">
+                    <button class="align-btn active" data-align="left">Left</button>
+                    <button class="align-btn" data-align="justify">Justify</button>
+                    <button class="align-btn" data-align="center">Center</button>
+                </div>
+            </div>
+
+            <div id="reset-button-container">
+                <button id="reset-reading-settings" class="btn btn-secondary" style="width: 100%; margin-top: 16px;">
+                    🔄 Reset to Defaults
+                </button>
+            </div>
+
+            <div id="reset-confirmation"
+                style="display: none; margin-top: 16px; padding: 16px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+                <div style="margin-bottom: 12px;">
+                    <strong style="color: #856404;">⚠️ Reset Settings?</strong>
+                    <p style="margin: 8px 0 0 0; color: #856404; font-size: 0.9rem; line-height: 1.4;">
+                        This will reset font size, line height, font family, reading width, and text alignment to
+                        defaults. Your color mode will be preserved.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button id="reset-confirm-yes" class="btn btn-warning" style="flex: 1;">Yes, Reset</button>
+                    <button id="reset-confirm-no" class="btn btn-secondary" style="flex: 1;">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="shortcuts-modal" class="shortcuts-modal" style="display: none;">
+        <div class="shortcuts-content">
+            <div class="shortcuts-header">
+                <h2>⌨️ Keyboard Shortcuts</h2>
+                <button class="close-btn"
+                    onclick="document.getElementById('shortcuts-modal').style.display='none'">&times;</button>
+            </div>
+            <div class="shortcuts-body">
+                <div class="shortcuts-section">
+                    <h3>Navigation</h3>
+                    <div class="shortcut-item">
+                        <kbd>←</kbd>
+                        <span>Previous Chapter</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>→</kbd>
+                        <span>Next Chapter</span>
+                    </div>
+                </div>
+
+                <div class="shortcuts-section">
+                    <h3>Actions</h3>
+                    <div class="shortcut-item">
+                        <kbd>T</kbd>
+                        <span>Translate Chapter</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>E</kbd>
+                        <span>Edit Translation</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>S</kbd>
+                        <span>Save Translation</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>C</kbd>
+                        <span>Toggle Compare Mode</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>Esc</kbd>
+                        <span>Exit Edit/Compare Mode</span>
+                    </div>
+                </div>
+
+                <div class="shortcuts-section">
+                    <h3>Help</h3>
+                    <div class="shortcut-item">
+                        <kbd>?</kbd>
+                        <span>Show this help</span>
+                    </div>
+                </div>
+            </div>
+            <div class="shortcuts-footer">
+                <p>💡 Press <kbd>?</kbd> anytime to toggle this help</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="character-popup" class="character-popup" style="display: none;">
+        <div class="popup-content">
+            <div class="popup-header">
+                <h3 id="popup-name">Character Name</h3>
+                <button class="close-popup-btn">&times;</button>
+            </div>
+            <div class="popup-body">
+                <div id="popup-meta" class="popup-meta"></div>
+                <div id="popup-description" class="popup-description"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="cost-modal" class="shortcuts-modal" style="display: none; z-index: 2000;">
+        <div class="shortcuts-content" style="max-width: 500px;">
+            <div class="shortcuts-header" style="border-bottom: 1px solid var(--border-light);">
+                <h2>💰 Translation Cost Estimate</h2>
+                <button class="close-btn"
+                    onclick="document.getElementById('cost-modal').style.display='none'">&times;</button>
+            </div>
+            <div class="shortcuts-body" style="padding: 20px;">
+                <div style="margin-bottom: 20px;">
+                    <div
+                        style="display: flex; justify-content: space-between; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border-light);">
+                        <span style="color: var(--text-secondary);">Model:</span>
+                        <span id="cost-model" style="font-weight: 600; color: var(--text-primary);">GPT-4o</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+
+                    </div>
+
+                    <style>
+                        .btn-accent {
+                            background-color: #805ad5;
+                            color: white;
+                        }
+
+                        .btn-accent:hover {
+                            background-color: #6b46c1;
+                        }
+
+                        .thinking-badge {
+                            background-color: #fffbeb;
+                            color: #d97706;
+                            padding: 2px 8px;
+                            border-radius: 4px;
+                            border: 1px solid #fcd34d;
+                            font-size: 0.8rem;
+                            display: inline-flex;
+                            align-items: center;
+                        }
+
+                        body.dark-mode .thinking-badge {
+                            background-color: #78350f;
+                            color: #fcd34d;
+                            border-color: #b45309;
+                        }
+                    </style>
+                    {% endblock %}
+
+                    {% block extra_js %}
+
+                    <script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
+                    <script src="{{ url_for('static', filename='js/reading-preferences.js') }}"></script>
+                    <script src="{{ url_for('static', filename='js/chapter.js') }}"></script>
+                    <script id="chapter-data" type="application/json">
+{
+    "koreanText": {{ chapter.korean_text|tojson }},
+    "translatedText": {{ chapter.translated_text|tojson }},
+    "translationModel": {{ chapter.translation_model|tojson if chapter.translation_model else 'null' }},
+    "novelId": {{ novel_id|tojson }},
+    "chapterIndex": {{ chapter_index|tojson }},
+    "chapterNumber": {{ chapter.get('chapter_number', chapter_index + 1)|tojson }},
+    "images": {{ chapter.get('images', [])|tojson }},
+    "glossary": {{ glossary|tojson }},
+    "totalChapters": {{ novel.chapters|length }},
+    "hasPrevious": {{ 'true' if chapter_index > 0 else 'false' }},
+    "hasNext": {{ 'true' if chapter_index < (novel.chapters|length - 1) else 'false' }},
+    "title": {{ chapter.title|tojson }},
+    "translatedTitle": {{ chapter.get('translated_title', '')|tojson }},
+    "chapterId": {{ chapter.get('id')|tojson if chapter.get('id') else 'null' }},
+    "sortOrder": {{ sort_order|tojson }}
+}
+</script>
+                    <script>
+
+                        window.chapterData = JSON.parse(document.getElementById('chapter-data').textContent);
+
+                        (function () {
+
+                            function gotoPreviousChapter() {
+                                if (window.chapterData.hasPrevious) {
+                                    const prevIndex = window.chapterData.chapterIndex - 1;
+                                    window.location.href = `/chapter/${window.chapterData.novelId}/${prevIndex}`;
+                                }
+                            }
+
+                            function gotoNextChapter() {
+                                if (window.chapterData.hasNext) {
+                                    const nextIndex = window.chapterData.chapterIndex + 1;
+                                    window.location.href = `/chapter/${window.chapterData.novelId}/${nextIndex}`;
+                                }
+                            }
+
+                            const mobilePrevBtn = document.getElementById('mobile-prev-btn');
+                            const mobileNextBtn = document.getElementById('mobile-next-btn');
+
+                            if (mobilePrevBtn) {
+                                mobilePrevBtn.addEventListener('click', gotoPreviousChapter);
+                            }
+
+                            if (mobileNextBtn) {
+                                mobileNextBtn.addEventListener('click', gotoNextChapter);
+                            }
+
+                            const endPrevBtn = document.getElementById('end-prev-btn');
+                            const endNextBtn = document.getElementById('end-next-btn');
+
+                            if (endPrevBtn) {
+                                endPrevBtn.addEventListener('click', gotoPreviousChapter);
+                            }
+
+                            if (endNextBtn) {
+                                endNextBtn.addEventListener('click', gotoNextChapter);
+                            }
+
+                            let touchStartX = 0;
+                            let touchEndX = 0;
+                            const SWIPE_THRESHOLD = 75;
+
+                            document.addEventListener('touchstart', function (e) {
+                                touchStartX = e.changedTouches[0].screenX;
+                            }, { passive: true });
+
+                            document.addEventListener('touchend', function (e) {
+                                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') {
+                                    return;
+                                }
+
+                                touchEndX = e.changedTouches[0].screenX;
+                                handleSwipe();
+                            }, { passive: true });
+
+                            function handleSwipe() {
+                                const swipeDistance = touchEndX - touchStartX;
+
+                                if (Math.abs(swipeDistance) < SWIPE_THRESHOLD) {
+                                    return;
+                                }
+
+                                if (swipeDistance > 0) {
+                                    gotoPreviousChapter();
+                                } else if (swipeDistance < 0) {
+                                    gotoNextChapter();
+                                }
+                            }
+
+                            document.addEventListener('keydown', function (e) {
+
+                                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+                                    return;
+                                }
+
+                                if (e.key === 'ArrowLeft') {
+                                    e.preventDefault();
+                                    gotoPreviousChapter();
+                                }
+
+                                if (e.key === 'ArrowRight') {
+                                    e.preventDefault();
+                                    gotoNextChapter();
+                                }
+                            });
+                        })();
+
+                        (function () {
+                            const novelId = window.chapterData.novelId;
+                            const chapterNumber = window.chapterData.chapterNumber;
+                            const progressKey = `reading_progress_${novelId}`;
+                            const progress = {
+                                chapterNumber: chapterNumber,
+                                timestamp: new Date().toISOString()
+                            };
+                            localStorage.setItem(progressKey, JSON.stringify(progress));
+                        })();
+
+                        (function () {
+                            const urlParams = new URLSearchParams(window.location.search);
+                            if (urlParams.get('edit') === 'true') {
+
+                                setTimeout(() => {
+                                    const editBtn = document.getElementById('edit-btn');
+                                    if (editBtn) {
+                                        editBtn.click();
+                                    }
+                                }, 100);
+                            }
+                        })();
+
+                        (function () {
+                            const settingsBtn = document.getElementById('reading-settings-btn');
+                            const settingsPanel = document.getElementById('reading-settings-panel');
+                            const closePanelBtn = document.querySelector('.close-panel-btn');
+
+                            function togglePanel() {
+                                if (settingsPanel.style.display === 'none') {
+                                    settingsPanel.style.display = 'block';
+                                } else {
+                                    settingsPanel.classList.add('hiding');
+                                    setTimeout(() => {
+                                        settingsPanel.style.display = 'none';
+                                        settingsPanel.classList.remove('hiding');
+                                    }, 200);
+                                }
+                            }
+
+                            settingsBtn.addEventListener('click', togglePanel);
+                            closePanelBtn.addEventListener('click', togglePanel);
+
+                            document.addEventListener('click', (e) => {
+                                if (settingsPanel.style.display !== 'none' &&
+                                    !settingsPanel.contains(e.target) &&
+                                    !settingsBtn.contains(e.target)) {
+                                    togglePanel();
+                                }
+                            });
+
+                            const initializeUI = setInterval(() => {
+                                if (window.ReadingPreferences && window.ReadingPreferences.current) {
+                                    clearInterval(initializeUI);
+                                    setupControls();
+                                }
+                            }, 100);
+
+                            function setupControls() {
+                                const prefs = window.ReadingPreferences.current;
+
+                                const fontSizeSlider = document.getElementById('font-size-slider');
+                                const fontSizeValue = document.getElementById('font-size-value');
+                                if (fontSizeSlider && fontSizeValue) {
+                                    fontSizeSlider.value = prefs.fontSize;
+                                    fontSizeValue.textContent = `${prefs.fontSize}px`;
+
+                                    fontSizeSlider.addEventListener('input', function () {
+                                        fontSizeValue.textContent = `${this.value}px`;
+                                        window.ReadingPreferences.current.fontSize = parseInt(this.value);
+                                        window.ReadingPreferences.apply(window.ReadingPreferences.current);
+                                    });
+
+                                    fontSizeSlider.addEventListener('change', async function () {
+                                        await window.ReadingPreferences.save({ fontSize: parseInt(this.value) });
+                                    });
+                                }
+
+                                const lineHeightSelect = document.getElementById('line-height-select');
+                                if (lineHeightSelect) {
+                                    lineHeightSelect.value = prefs.lineHeight;
+                                    lineHeightSelect.addEventListener('change', async function () {
+                                        await window.ReadingPreferences.save({ lineHeight: this.value });
+                                        window.ReadingPreferences.apply(window.ReadingPreferences.current);
+                                    });
+                                }
+
+                                const fontFamilySelect = document.getElementById('font-family-select');
+                                if (fontFamilySelect) {
+                                    fontFamilySelect.value = prefs.fontFamily;
+                                    fontFamilySelect.addEventListener('change', async function () {
+                                        await window.ReadingPreferences.save({ fontFamily: this.value });
+                                        window.ReadingPreferences.apply(window.ReadingPreferences.current);
+                                    });
+                                }
+
+                                document.querySelectorAll('.width-btn').forEach(btn => {
+                                    btn.classList.toggle('active', btn.dataset.width === prefs.readingWidth);
+                                    btn.addEventListener('click', async function () {
+                                        document.querySelectorAll('.width-btn').forEach(b => b.classList.remove('active'));
+                                        this.classList.add('active');
+                                        await window.ReadingPreferences.save({ readingWidth: this.dataset.width });
+                                        window.ReadingPreferences.apply(window.ReadingPreferences.current);
+                                    });
+                                });
+
+                                document.querySelectorAll('.align-btn').forEach(btn => {
+                                    btn.classList.toggle('active', btn.dataset.align === prefs.textAlignment);
+                                    btn.addEventListener('click', async function () {
+                                        document.querySelectorAll('.align-btn').forEach(b => b.classList.remove('active'));
+                                        this.classList.add('active');
+                                        await window.ReadingPreferences.save({ textAlignment: this.dataset.align });
+                                        window.ReadingPreferences.apply(window.ReadingPreferences.current);
+                                    });
+                                });
+
+                                const resetBtn = document.getElementById('reset-reading-settings');
+                                const resetBtnContainer = document.getElementById('reset-button-container');
+                                const resetConfirmation = document.getElementById('reset-confirmation');
+                                const resetYesBtn = document.getElementById('reset-confirm-yes');
+                                const resetNoBtn = document.getElementById('reset-confirm-no');
+
+                                if (resetBtn && resetConfirmation && resetYesBtn && resetNoBtn) {
+
+                                    resetBtn.addEventListener('click', function (e) {
+                                        e.preventDefault();
+                                        resetBtnContainer.style.display = 'none';
+                                        resetConfirmation.style.display = 'block';
+                                    });
+
+                                    resetNoBtn.addEventListener('click', function (e) {
+                                        e.preventDefault();
+                                        resetConfirmation.style.display = 'none';
+                                        resetBtnContainer.style.display = 'block';
+                                    });
+
+                                    resetYesBtn.addEventListener('click', async function (e) {
+                                        e.preventDefault();
+                                        const currentColorMode = window.ReadingPreferences.current.colorMode;
+                                        await window.ReadingPreferences.reset();
+                                        await window.ReadingPreferences.save({ colorMode: currentColorMode });
+                                        location.reload();
+                                    });
+                                }
+                            }
+
+                        })();
+                    </script>
+                    {% endblock %}

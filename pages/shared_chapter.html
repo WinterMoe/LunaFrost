@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block title %}{{ chapter.title }} - {{ novel.title }}{% endblock %}
+
+{% block content %}
+<div class="reader-container">
+    <div class="reader-header">
+        <a href="/shared/{{ token }}" class="btn btn-secondary">← Back to Novel</a>
+        <div class="chapter-info">
+            <h1>{{ chapter.title }}</h1>
+            <p>{{ novel.title }} - Chapter {{ chapter.chapter_number }}</p>
+        </div>
+        <div class="reader-controls">
+            
+        </div>
+    </div>
+
+    <div class="reader-content">
+        {{ chapter.content | safe }}
+    </div>
+
+    <div class="reader-navigation">
+        {% if prev_chapter %}
+        <a href="/shared/{{ token }}/read/{{ prev_chapter }}" class="btn btn-primary">← Previous</a>
+        {% else %}
+        <div></div>
+        {% endif %}
+
+        {% if next_chapter %}
+        <a href="/shared/{{ token }}/read/{{ next_chapter }}" class="btn btn-primary">Next →</a>
+        {% else %}
+        <div></div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .reader-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .reader-header {
+        margin-bottom: 40px;
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 20px;
+    }
+
+    .chapter-info {
+        text-align: center;
+        margin-top: 20px;
+    }
+
+    .chapter-info h1 {
+        margin: 0 0 10px 0;
+    }
+
+    .reader-content {
+        font-size: 1.2rem;
+        line-height: 1.8;
+        color: var(--text-primary);
+        margin-bottom: 60px;
+    }
+
+    .reader-content p {
+        margin-bottom: 1.5em;
+    }
+
+    .reader-navigation {
+        display: flex;
+        justify-content: space-between;
+        padding-top: 20px;
+        border-top: 1px solid var(--border-light);
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,2512 @@
+{% extends "base.html" %}
+
+{% block title %}{{ webtoon.title }} - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container">
+    <style>
+        .merge-panel {
+            position: fixed;
+            left: 20px;
+            top: 140px;
+            background: #111827;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+            border-radius: 8px;
+            padding: 10px 12px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+            display: none;
+            z-index: 2000;
+            min-width: 220px;
+        }
+
+        .merge-panel h4 {
+            margin: 0 0 6px 0;
+            font-size: 0.95rem;
+            color: #fbbf24;
+        }
+
+        .merge-panel .merge-meta {
+            font-size: 0.85rem;
+            color: #cbd5e1;
+            margin-bottom: 8px;
+        }
+
+        .merge-panel select {
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .merge-panel button {
+            width: 100%;
+        }
+
+        .merge-selected {
+            outline: 3px dashed #fbbf24;
+            outline-offset: 4px;
+            border-radius: 10px;
+        }
+    </style>
+    <header>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+            <a href="/" class="btn btn-secondary">← Back to Library</a>
+            {% if webtoon.total_images > 0 %}
+            <a href="/webtoon/{{ webtoon.job_id }}/read" class="btn btn-primary"
+                style="background: #6366f1; border-color: #6366f1;">
+                📖 Read {{ 'Manga' if webtoon.reading_mode == 'manga' else 'Webtoon' }}
+            </a>
+            {% endif %}
+            <a href="/webtoon/{{ webtoon.job_id }}/upload" class="btn btn-secondary">📤 Upload More</a>
+            <a href="/webtoon/{{ webtoon.job_id }}/settings" class="btn btn-secondary">⚙️ Settings</a>
+            {% if not webtoon.overwrite_text %}
+            <button id="translate-all-button" class="btn btn-primary"
+                style="padding: 8px 16px; font-size: 0.9rem; background: #10b981; border-color: #10b981;"
+                onclick="translateAllRegions()">
+                🔄 Translate All Boxes
+            </button>
+            {% endif %}
+        </div>
+        <h1>{{ webtoon.title }}</h1>
+        {% if webtoon.author %}
+        <p style="color: #718096; font-size: 1rem; margin-top: 5px;">by {{ webtoon.author }}</p>
+        {% endif %}
+        <div style="color: #718096; font-size: 0.9rem; margin-top: 10px;">
+            <p>📚 {{ webtoon.total_images }} pages • {{ webtoon.reading_mode|default('manga')|title }} mode</p>
+            <p>🖼️ {{ webtoon.processed_images }} / {{ webtoon.total_images }} images translated</p>
+            <p>Status: <span style="font-weight: 500;">{{ webtoon.status }}</span></p>
+            {% if webtoon.source_language %}
+            <p>Source Language: <span style="font-weight: 500;">{{ webtoon.source_language|title }}</span></p>
+            {% endif %}
+            {% if webtoon.completed_at %}
+            <p>Completed: <span style="font-weight: 500;">{{ webtoon.completed_at[:10] }}</span></p>
+            {% endif %}
+        </div>
+        {% if webtoon.synopsis %}
+        <div
+            style="margin-top: 15px; padding: 15px; background: rgba(99, 102, 241, 0.1); border-radius: 8px; color: var(--text-secondary);">
+            <strong>Synopsis:</strong><br>
+            {{ webtoon.synopsis }}
+        </div>
+        {% endif %}
+    </header>
+
+    <div id="merge-panel" class="merge-panel">
+        <h4>Merge 2 Images</h4>
+        <div class="merge-meta" id="merge-meta-text">Select two images with Ctrl+Click.</div>
+        <select id="merge-order" class="form-select form-select-sm">
+            <option value="as-selected" selected>Top = first selected</option>
+            <option value="reverse">Top = second selected</option>
+        </select>
+        <button class="btn btn-warning btn-sm" id="merge-button" disabled>Merge & Remove Originals</button>
+    </div>
+
+    {% if webtoon.chapters and webtoon.chapters|length > 0 %}
+    <div class="webtoon-images" style="margin-top: 30px;">
+        {% for chapter in webtoon.chapters %}
+        <div class="chapter-section" style="margin-bottom: 20px;">
+            <div class="chapter-header"
+                style="padding: 15px; background: rgba(99, 102, 241, 0.1); border-radius: 8px; margin-bottom: 10px;">
+                <div onclick="toggleChapter('chapter-{{ chapter.number }}')"
+                    style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3 style="margin: 0; color: var(--text-primary);">
+                        {% if webtoon.reading_mode == 'manga' %}
+                        🖼️ {{ chapter.name|replace('Chapter', 'Image') }}
+                        {% else %}
+                        📑 {{ chapter.name }} ({{ chapter.images|length }} image{{ 's' if chapter.images|length != 1
+                        else '' }})
+                        {% endif %}
+                    </h3>
+                    <span class="chapter-toggle-icon" id="icon-chapter-{{ chapter.number }}"
+                        style="font-size: 1.2rem; transition: transform 0.3s ease; transform: rotate(-90deg);">▼</span>
+                </div>
+                <button class="btn btn-primary btn-sm"
+                    onclick="translateChapter({{ chapter.number }}, '{{ webtoon.job_id }}', {{ chapter.images|map(attribute='id')|list|tojson }})"
+                    style="padding: 6px 12px; font-size: 0.85rem;">
+                    🔄 Translate Chapter Text
+                </button>
+            </div>
+            <div class="chapter-content collapsed" id="chapter-{{ chapter.number }}"
+                style="overflow: hidden; transition: max-height 0.3s ease-out, opacity 0.3s ease-out, padding 0.3s ease-out; max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0;">
+                {% for image in chapter.images %}
+                <div class="webtoon-image-item merge-selectable" data-image-id="{{ image.id }}"
+                    data-chapter-number="{{ chapter.number }}"
+                    data-page-order="{{ image.page_order if image.page_order else loop.index }}"
+                    data-filename="{{ image.original_filename }}" style="margin-bottom: 30px; text-align: center;">
+                    <div style="margin-bottom: 10px; color: #718096; font-size: 0.9rem;">
+                        Page {{ image.page_order if image.page_order else loop.index }}: {{ image.original_filename }}
+                    </div>
+                    {% if not webtoon.overwrite_text and image.original_url %}
+                    
+                    <div class="clickable-image-container"
+                        style="position: relative; display: inline-block; max-width: 100%;">
+                        <img src="{{ image.original_url }}" alt="{{ image.original_filename }}" class="clickable-image"
+                            data-image-id="{{ image.id }}"
+                            style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: block;"
+                            loading="lazy"
+                            onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        
+                        <div class="text-regions-container"
+                            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden;">
+                        </div>
+                    </div>
+                    <p class="help-text" style="margin-top: 10px; font-size: 0.85rem; color: #718096;">
+                        💡 Click on text bubbles/boxes to see translations
+                    </p>
+                    {% else %}
+                    
+                    <img src="{{ image.url }}" alt="{{ image.original_filename }}"
+                        style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer;"
+                        onclick="openImageModal('{{ image.url }}', '{{ image.original_filename }}')" loading="lazy"
+                        onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    {% endif %}
+                    <div
+                        style="display: none; padding: 20px; background: #fed7d7; border: 1px solid #fc8181; border-radius: 8px; color: #742a2a;">
+                        <p><strong>Error loading image:</strong> {{ image.original_filename }}</p>
+                        <p style="font-size: 0.85rem; margin-top: 5px;">Path: {{ image.translated_path }}</p>
+                        <p style="font-size: 0.85rem;">URL: {{ image.url }}</p>
+                    </div>
+                    <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+
+                        <button
+                            class="btn {% if webtoon.cover_image_id == image.id %}btn-success{% else %}btn-outline-secondary{% endif %}"
+                            style="padding: 6px 12px; font-size: 0.85rem;"
+                            onclick="setCoverImage('{{ webtoon.job_id }}', {{ image.id }}, this)" {% if
+                            webtoon.cover_image_id==image.id %}disabled{% endif %}>
+                            {% if webtoon.cover_image_id == image.id %}✓ Cover{% else %}🖼️ Set as Cover{% endif %}
+                        </button>
+                        <button class="btn btn-outline-warning" style="padding: 6px 12px; font-size: 0.85rem;"
+                            type="button"
+                            onclick="processImageWithNanoBanana('{{ webtoon.job_id }}', {{ image.id }}, this)">
+                            🍌 Nano Banana
+                        </button>
+                        <button class="btn btn-outline-secondary" style="padding: 6px 12px; font-size: 0.85rem;"
+                            type="button"
+                            onclick="saveScrollAndNavigate('/webtoon/{{ webtoon.job_id }}/image/{{ image.id }}/edit-ocr', 'chapter-{{ chapter.number }}')">
+                            ✏️ Edit OCR/Scanlation
+                        </button>
+                        <button class="btn btn-outline-danger" style="padding: 6px 12px; font-size: 0.85rem;"
+                            type="button"
+                            onclick="confirmDeleteImage('{{ webtoon.job_id }}', {{ image.id }}, {{ chapter.number }}, {{ image.page_order }})">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% elif webtoon.images and webtoon.images|length > 0 %}
+    
+    <div class="webtoon-images" style="margin-top: 30px;">
+        {% for image in webtoon.images %}
+        <div class="webtoon-image-item merge-selectable" data-image-id="{{ image.id }}"
+            data-chapter-number="{{ image.chapter_number }}"
+            data-page-order="{{ image.page_order if image.page_order else image.index }}"
+            data-filename="{{ image.original_filename }}" style="margin-bottom: 30px; text-align: center;">
+            <div style="margin-bottom: 10px; color: #718096; font-size: 0.9rem;">
+                Image {{ image.index }}: {{ image.original_filename }}
+            </div>
+            {% if not webtoon.overwrite_text and image.original_url %}
+            
+            <div class="clickable-image-container" style="position: relative; display: inline-block; max-width: 100%;">
+                <img src="{{ image.original_url }}" alt="{{ image.original_filename }}" class="clickable-image"
+                    data-image-id="{{ image.id }}"
+                    style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: block;"
+                    loading="lazy"
+                    onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='block';">
+                
+                <div class="text-regions-container"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden;">
+                </div>
+            </div>
+            <p class="help-text" style="margin-top: 10px; font-size: 0.85rem; color: #718096;">
+                💡 Click on text bubbles/boxes to see translations
+            </p>
+            {% else %}
+            
+            <img src="{{ image.url }}" alt="{{ image.original_filename }}"
+                style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: pointer;"
+                onclick="openImageModal('{{ image.url }}', '{{ image.original_filename }}')" loading="lazy"
+                onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='block';">
+            {% endif %}
+            <div
+                style="display: none; padding: 20px; background: #fed7d7; border: 1px solid #fc8181; border-radius: 8px; color: #742a2a;">
+                <p><strong>Error loading image:</strong> {{ image.original_filename }}</p>
+                <p style="font-size: 0.85rem; margin-top: 5px;">Path: {{ image.translated_path }}</p>
+                <p style="font-size: 0.85rem;">URL: {{ image.url }}</p>
+            </div>
+            <div style="margin-top: 10px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+
+                <button
+                    class="btn {% if webtoon.cover_image_id == image.id %}btn-success{% else %}btn-outline-secondary{% endif %}"
+                    style="padding: 6px 12px; font-size: 0.85rem;"
+                    onclick="setCoverImage('{{ webtoon.job_id }}', {{ image.id }}, this)" {% if
+                    webtoon.cover_image_id==image.id %}disabled{% endif %}>
+                    {% if webtoon.cover_image_id == image.id %}✓ Cover{% else %}🖼️ Set as Cover{% endif %}
+                </button>
+                <button class="btn btn-outline-warning" style="padding: 6px 12px; font-size: 0.85rem;" type="button"
+                    onclick="processImageWithNanoBanana('{{ webtoon.job_id }}', {{ image.id }}, this)">
+                    🍌 Nano Banana
+                </button>
+                <button class="btn btn-outline-secondary" style="padding: 6px 12px; font-size: 0.85rem;" type="button"
+                    onclick="saveScrollAndNavigate('/webtoon/{{ webtoon.job_id }}/image/{{ image.id }}/edit-ocr', null)">
+                    ✏️ Edit OCR/Scanlation
+                </button>
+                <button class="btn btn-outline-danger" style="padding: 6px 12px; font-size: 0.85rem;" type="button"
+                    onclick="confirmDeleteImage('{{ webtoon.job_id }}', {{ image.id }}, {{ image.chapter_number }}, {{ image.page_order }})">
+                    🗑️
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 40px; color: #718096;">
+        <p>No images available yet. The translation may still be processing.</p>
+        {% if webtoon.status == 'processing' %}
+        <p style="margin-top: 10px;">Please refresh the page to check for updates.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<div id="image-modal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 10000; align-items: center; justify-content: center; cursor: pointer;"
+    onclick="closeImageModal()">
+    <div style="position: relative; max-width: 95%; max-height: 95%; padding: 20px;">
+        <button onclick="closeImageModal(); event.stopPropagation();"
+            style="position: absolute; top: 10px; right: 10px; background: rgba(255,255,255,0.2); border: none; color: white; font-size: 2rem; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; z-index: 10001;">
+            ×
+        </button>
+        <img id="modal-image" src="" alt="" style="max-width: 100%; max-height: 95vh; border-radius: 8px;">
+        <div id="modal-caption" style="color: white; text-align: center; margin-top: 15px; font-size: 1rem;"></div>
+    </div>
+</div>
+
+<script>
+
+    const scrollKey = 'webtoon_scroll_' + '{{ webtoon.job_id }}';
+    document.addEventListener('DOMContentLoaded', function () {
+        const savedScroll = sessionStorage.getItem(scrollKey);
+        if (savedScroll) {
+            const scrollData = JSON.parse(savedScroll);
+            sessionStorage.removeItem(scrollKey);
+
+            if (scrollData.chapterId && typeof toggleChapter === 'function') {
+                const chapter = document.getElementById(scrollData.chapterId);
+                if (chapter && chapter.classList.contains('collapsed')) {
+                    toggleChapter(scrollData.chapterId);
+                }
+            }
+
+            setTimeout(() => {
+                window.scrollTo(0, scrollData.scrollY);
+            }, 600);
+        }
+    });
+
+    function saveScrollAndNavigate(url, chapterId) {
+        const scrollData = { scrollY: window.scrollY, chapterId: chapterId };
+        sessionStorage.setItem(scrollKey, JSON.stringify(scrollData));
+        window.location.href = url;
+    }
+
+    function toggleChapter(chapterId) {
+        const content = document.getElementById(chapterId);
+        const icon = document.getElementById('icon-' + chapterId);
+
+        if (content && icon) {
+            const isCollapsed = content.classList.contains('collapsed');
+            content.classList.toggle('collapsed');
+
+            icon.style.transform = content.classList.contains('collapsed') ? 'rotate(-90deg)' : 'rotate(0deg)';
+        }
+    }
+
+    function collapseRepeatedSentences(text) {
+        if (!text) return text;
+
+        const parts = text.split(/(?<=[.!?])\s+/);
+        const seen = new Set();
+        const out = [];
+        parts.forEach(p => {
+            const trimmed = p.trim();
+            if (!trimmed) return;
+            const norm = trimmed.replace(/\s+/g, ' ').toLowerCase();
+            if (!seen.has(norm)) {
+                seen.add(norm);
+                out.push(trimmed);
+            }
+        });
+        return out.join(' ');
+    }
+
+    function collapseRepeatedSegments(text) {
+        if (!text) return text;
+        const normalized = text.replace(/\s+/g, ' ').trim();
+        const repeatMatch = normalized.match(/^(.+?)(?:\s+\1){1,}$/i);
+        if (repeatMatch) {
+            return repeatMatch[1].trim();
+        }
+        return collapseRepeatedSentences(normalized);
+    }
+
+    async function translateChapter(chapterNumber, jobId, imageIds) {
+        if (!imageIds || imageIds.length === 0) {
+            window.showAlertModal('No Images', 'No images found in this chapter', 'error');
+            return;
+        }
+
+        const confirmed = confirm(`Translate all text boxes in Chapter ${chapterNumber}? This will translate ${imageIds.length} image(s).`);
+        if (!confirmed) return;
+
+        const button = event.target;
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = '⏳ Translating...';
+
+        try {
+            let translatedCount = 0;
+            let failedCount = 0;
+
+            for (const imageId of imageIds) {
+                try {
+
+                    const response = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/data`, {
+                        method: 'GET'
+                    });
+
+                    if (!response.ok) {
+                        console.error(`Failed to get data for image ${imageId}`);
+                        failedCount++;
+                        continue;
+                    }
+
+                    const data = await response.json();
+                    const ocrRegions = data.ocr_regions || [];
+                    const bubbleGroups = data.bubble_groups || [];
+
+                    if (ocrRegions.length === 0) {
+                        console.log(`No OCR regions found for image ${imageId}`);
+                        continue;
+                    }
+
+                    const translationsByRegion = new Array(ocrRegions.length).fill(null);
+                    const translationTargets = [];
+                    const bubbleTargets = [];
+
+                    if (bubbleGroups.length > 0) {
+                        const bubbleKeySet = new Set();
+                        bubbleGroups.forEach(group => {
+                            const indices = group.region_indices || [];
+                            if (!indices.length) return;
+
+                            const key = indices.slice().sort((a, b) => a - b).join(',');
+                            if (bubbleKeySet.has(key)) return;
+                            bubbleKeySet.add(key);
+
+                            const seen = new Set();
+                            const mergedParts = [];
+
+                            indices.forEach(idx => {
+                                const region = ocrRegions[idx];
+                                if (!region) return;
+                                const raw = (region.text || region.originalText || region.original_text || '').trim();
+                                if (!raw) return;
+                                const normalized = raw.replace(/\s+/g, ' ').trim().toLowerCase();
+                                if (!seen.has(normalized)) {
+                                    seen.add(normalized);
+                                    mergedParts.push(raw);
+                                }
+                            });
+
+                            if (mergedParts.length > 1) {
+                                const firstNorm = mergedParts[0].replace(/\s+/g, ' ').trim().toLowerCase();
+                                const allSame = mergedParts.every(p => p.replace(/\s+/g, ' ').trim().toLowerCase() === firstNorm);
+                                if (allSame) {
+                                    mergedParts.splice(1);
+                                }
+                            }
+
+                            let text = mergedParts.join(' ').replace(/\s+/g, ' ').trim();
+                            text = collapseRepeatedSegments(text);
+                            if (!text) return;
+                            const target = { text, indices, bubble: true, groupIndex: bubbleTargets.length };
+                            translationTargets.push(target);
+                            bubbleTargets.push({
+                                group,
+                                indices,
+                                originalText: text
+                            });
+                        });
+                    } else {
+                        ocrRegions.forEach((region, idx) => {
+                            const regionText = region.text || region.originalText || region.original_text || '';
+                            if (regionText && regionText.trim()) {
+                                translationTargets.push({ text: regionText, indices: [idx] });
+                            }
+                        });
+                    }
+
+                    for (const target of translationTargets) {
+                        try {
+                            const translateResponse = await window.fetchWithCSRF('/api/translate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    text: target.text,
+                                    source_language: sourceLanguage,
+                                    chapter_id: chapterNumber
+                                })
+                            });
+
+                            if (translateResponse.ok) {
+                                const translateData = await translateResponse.json();
+                                let translatedText = translateData.translated_text || translateData.translatedText || '';
+                                translatedText = collapseRepeatedSegments(translatedText);
+                                target.indices.forEach(idx => {
+                                    translationsByRegion[idx] = translatedText;
+                                });
+                            } else {
+                                console.error(`Translation failed for target in image ${imageId}:`, translateResponse.statusText);
+                            }
+                        } catch (err) {
+                            console.error(`Translation failed for target in image ${imageId}:`, err);
+                        }
+                    }
+
+                    const hasTranslations = translationsByRegion.some(t => t && t.trim && t.trim());
+                    let translatedRegionsPayload = [];
+
+                    if (bubbleGroups.length > 0 && bubbleTargets.length > 0) {
+                        translatedRegionsPayload = bubbleTargets.map((target, idx) => {
+                            const anyIdx = target.indices[0];
+                            const translatedText = collapseRepeatedSegments(translationsByRegion[anyIdx] || '');
+                            return {
+                                bbox: target.group.bbox,
+                                originalText: target.originalText || '',
+                                translatedText: translatedText || '',
+                                boxId: `img_${imageId}_bubble_${idx}`,
+                                regionIndices: target.indices
+                            };
+                        });
+                    } else if (hasTranslations) {
+                        translatedRegionsPayload = ocrRegions.map((ocr, idx) => {
+                            const translatedText = translationsByRegion[idx] || '';
+                            return {
+                                bbox: ocr.bbox,
+                                text: translatedText,
+                                confidence: ocr.confidence || 1.0
+                            };
+                        });
+                    }
+
+                    if (translatedRegionsPayload.length > 0) {
+                        const saveResponse = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/translations`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ translated_regions: translatedRegionsPayload })
+                        });
+
+                        if (saveResponse.ok) {
+                            translatedCount++;
+                        } else {
+                            failedCount++;
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Error processing image ${imageId}:`, err);
+                    failedCount++;
+                }
+            }
+
+            if (translatedCount > 0) {
+                window.showAlertModal('Translation Complete', `Successfully translated ${translatedCount} image${translatedCount !== 1 ? 's' : ''} in Chapter ${chapterNumber}!${failedCount > 0 ? ` ${failedCount} image(s) failed.` : ''}`, 'success');
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 500);
+            } else {
+                window.showAlertModal('No Translations', `No translations were completed for Chapter ${chapterNumber}.${failedCount > 0 ? ` ${failedCount} image(s) failed.` : ' No OCR text found in images.'}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error translating chapter:', error);
+            window.showAlertModal('Error', 'Error translating chapter: ' + error.message, 'error');
+        } finally {
+            button.disabled = false;
+            button.textContent = originalText;
+        }
+    }
+
+    const overwriteText = {{ 'true' if webtoon.overwrite_text else 'false' }};
+    const jobId = '{{ webtoon.job_id }}';
+    const sourceLanguage = '{{ webtoon.source_language or "korean" }}';
+
+    const mergeSelection = [];
+    const mergePanel = document.getElementById('merge-panel');
+    const mergeMetaText = document.getElementById('merge-meta-text');
+    const mergeOrderSelect = document.getElementById('merge-order');
+    const mergeButton = document.getElementById('merge-button');
+
+    function updateMergePanel() {
+        if (!mergePanel) return;
+        if (mergeSelection.length === 0) {
+            mergePanel.style.display = 'none';
+            mergeButton.disabled = true;
+            mergeMetaText.textContent = 'Select two images with Ctrl+Click.';
+            return;
+        }
+
+        mergePanel.style.display = 'block';
+        const labels = mergeSelection.map((s, idx) => `${idx + 1}: Page ${s.pageOrder || '?'}`);
+        mergeMetaText.textContent = labels.join(' | ');
+        mergeButton.disabled = mergeSelection.length !== 2;
+    }
+
+    function clearMergeSelection() {
+        mergeSelection.splice(0, mergeSelection.length);
+        document.querySelectorAll('.merge-selectable.merge-selected').forEach(el => el.classList.remove('merge-selected'));
+        updateMergePanel();
+    }
+
+    function handleImageCardCtrlClick(e) {
+        if (!e.ctrlKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const card = e.currentTarget;
+        const imageId = card.dataset.imageId;
+        const chapterNumber = card.dataset.chapterNumber;
+        const pageOrder = card.dataset.pageOrder || '';
+        const filename = card.dataset.filename || '';
+
+        if (!imageId) return;
+
+        const existingIdx = mergeSelection.findIndex(s => s.id === imageId);
+        if (existingIdx >= 0) {
+            mergeSelection.splice(existingIdx, 1);
+            card.classList.remove('merge-selected');
+            updateMergePanel();
+            return;
+        }
+
+        if (mergeSelection.length >= 2) {
+            window.showAlertModal('Limit Reached', 'Select only two images to merge.', 'error');
+            return;
+        }
+
+        if (mergeSelection.length === 1 && mergeSelection[0].chapter !== chapterNumber) {
+            window.showAlertModal('Same Chapter Required', 'Please select two images from the same chapter to merge.', 'error');
+            return;
+        }
+
+        mergeSelection.push({ id: imageId, chapter: chapterNumber, pageOrder, filename, element: card });
+        card.classList.add('merge-selected');
+        updateMergePanel();
+    }
+
+    async function mergeSelectedImages() {
+        if (mergeSelection.length !== 2) {
+            window.showAlertModal('Select Images', 'Select two images to merge.', 'error');
+            return;
+        }
+
+        let ordered = [...mergeSelection];
+        if (mergeOrderSelect && mergeOrderSelect.value === 'reverse') {
+            ordered = ordered.reverse();
+        }
+
+        const imageIds = ordered.map(s => parseInt(s.id, 10)).filter(Boolean);
+        if (imageIds.length !== 2) {
+            window.showAlertModal('Error', 'Could not read selected images.', 'error');
+            return;
+        }
+
+        mergeButton.disabled = true;
+        mergeButton.textContent = 'Merging...';
+
+        try {
+            const resp = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/merge-images`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_ids: imageIds })
+            });
+
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || 'Merge failed');
+            }
+
+            window.showAlertModal('Merge Complete', 'Merge complete. The new image will be reprocessed now.', 'success');
+            window.location.reload();
+        } catch (err) {
+            window.showAlertModal('Merge Failed', err.message || 'Merge failed', 'error');
+        } finally {
+            mergeButton.disabled = false;
+            mergeButton.textContent = 'Merge & Remove Originals';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.merge-selectable').forEach(card => {
+            card.addEventListener('click', handleImageCardCtrlClick, true);
+        });
+        if (mergeButton) {
+            mergeButton.addEventListener('click', mergeSelectedImages);
+        }
+    });
+
+    let imageDataCache = {};
+
+    const mergedRegionsCache = {};
+
+    const boxIdToRegion = {};
+
+    function getHoverOutline(container) {
+        let outline = container.querySelector('.ocr-hover-outline');
+        if (!outline) {
+            outline = document.createElement('div');
+            outline.className = 'ocr-hover-outline';
+            outline.style.cssText = `
+                position: absolute;
+                pointer-events: none;
+                border: 2px dashed rgba(59, 130, 246, 0.9);
+                border-radius: 6px;
+                background: rgba(59, 130, 246, 0.08);
+                box-shadow: 0 0 12px rgba(59, 130, 246, 0.35);
+                display: none;
+                z-index: 12;
+            `;
+            const label = document.createElement('div');
+            label.className = 'ocr-hover-label';
+            label.style.cssText = `
+                position: absolute;
+                top: -18px;
+                left: 0;
+                background: rgba(59, 130, 246, 0.95);
+                color: #fff;
+                padding: 2px 6px;
+                border-radius: 4px;
+                font-size: 0.7rem;
+                font-weight: 600;
+                pointer-events: none;
+                white-space: nowrap;
+            `;
+            label.textContent = 'OCR Box';
+            outline.appendChild(label);
+            container.appendChild(outline);
+        }
+        return outline;
+    }
+
+    function showRegionHoverOutline(container, x, y, width, height, isMissing) {
+        const outline = getHoverOutline(container);
+        const label = outline.querySelector('.ocr-hover-label');
+
+        const color = isMissing ? 'rgba(239, 68, 68, 0.95)' : 'rgba(99, 102, 241, 0.95)';
+        const fill = isMissing ? 'rgba(239, 68, 68, 0.12)' : 'rgba(99, 102, 241, 0.10)';
+        const glow = isMissing ? '0 0 14px rgba(239, 68, 68, 0.6)' : '0 0 12px rgba(99, 102, 241, 0.45)';
+
+        outline.style.borderColor = color;
+        outline.style.background = fill;
+        outline.style.boxShadow = glow;
+        outline.style.left = `${x - 2}px`;
+        outline.style.top = `${y - 2}px`;
+        outline.style.width = `${width + 4}px`;
+        outline.style.height = `${height + 4}px`;
+        outline.style.display = 'block';
+
+        if (label) {
+            label.style.background = color;
+        }
+    }
+
+    function hideRegionHoverOutline(container) {
+        const outline = container.querySelector('.ocr-hover-outline');
+        if (outline) {
+            outline.style.display = 'none';
+        }
+    }
+
+    async function setCoverImage(jobId, imageId, button) {
+
+        button.disabled = true;
+        const originalText = button.innerHTML;
+        button.innerHTML = '⏳ Setting...';
+
+        try {
+            const response = await window.fetchWithCSRF(`/api/webtoon/${jobId}/cover/${imageId}`, {
+                method: 'PUT'
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+
+                document.querySelectorAll('[onclick^="setCoverImage"]').forEach(btn => {
+                    btn.classList.remove('btn-success');
+                    btn.classList.add('btn-outline-secondary');
+                    btn.innerHTML = '🖼️ Set as Cover';
+                    btn.disabled = false;
+                });
+
+                button.classList.remove('btn-outline-secondary');
+                button.classList.add('btn-success');
+                button.innerHTML = '✓ Cover';
+                button.disabled = true;
+
+                console.log('✅ Cover image set successfully');
+            } else {
+                throw new Error(data.error || 'Failed to set cover image');
+            }
+        } catch (error) {
+            console.error('❌ Error setting cover:', error);
+            window.showAlertModal('Error', error.message, 'error');
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }
+    }
+
+    function openImageModal(imageUrl, filename) {
+        const modal = document.getElementById('image-modal');
+        const modalImage = document.getElementById('modal-image');
+        const modalCaption = document.getElementById('modal-caption');
+
+        modalImage.src = imageUrl;
+        modalCaption.textContent = filename;
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeImageModal() {
+        const modal = document.getElementById('image-modal');
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeImageModal();
+            closeTranslationPopup();
+        }
+    });
+
+    if (!overwriteText) {
+        document.addEventListener('DOMContentLoaded', function () {
+            const clickableImages = document.querySelectorAll('.clickable-image');
+
+            clickableImages.forEach(img => {
+                const imageId = img.dataset.imageId;
+                const container = img.parentElement;
+                const overlay = container.querySelector('.text-region-overlay');
+
+                loadImageData(imageId).then(data => {
+                    console.log('📥 Loaded image data:', {
+                        imageId,
+                        hasOcr: !!data?.ocr_regions,
+                        hasTranslated: !!data?.translated_regions,
+                        hasBubbleGroups: !!data?.bubble_groups?.length,
+                        ocrCount: data?.ocr_regions?.length || 0,
+                        translatedCount: data?.translated_regions?.length || 0,
+                        bubbleGroupsCount: data?.bubble_groups?.length || 0,
+                        sampleOcr: data?.ocr_regions?.[0],
+                        sampleTranslated: data?.translated_regions?.[0]
+                    });
+
+                    if (data && data.ocr_regions) {
+
+                        const translatedRegions = data.translated_regions || [];
+                        const bubbleGroups = data.bubble_groups || [];
+                        console.log('🔍 Setting up clickable regions with:', {
+                            ocrCount: data.ocr_regions.length,
+                            translatedCount: translatedRegions.length,
+                            bubbleGroupsCount: bubbleGroups.length
+                        });
+                        setupClickableRegions(img, container, overlay, data.ocr_regions, translatedRegions, bubbleGroups);
+                    } else {
+                        console.warn('⚠️ Missing OCR data:', data);
+                    }
+                }).catch(error => {
+                    console.error('❌ Error loading image data:', error);
+                });
+            });
+        });
+    }
+
+    async function loadImageData(imageId) {
+        if (imageDataCache[imageId]) {
+            return imageDataCache[imageId];
+        }
+
+        try {
+            const response = await fetch(`/api/webtoon/job/${jobId}/image/${imageId}/data`);
+            if (response.ok) {
+                const data = await response.json();
+                imageDataCache[imageId] = data;
+                return data;
+            }
+        } catch (error) {
+            console.error('Error loading image data:', error);
+        }
+        return null;
+    }
+
+    function setupClickableRegions(img, container, overlay, ocrRegions, translatedRegions, bubbleGroups = []) {
+        const regionsContainer = container.querySelector('.text-regions-container');
+        if (!regionsContainer) return;
+
+        img.addEventListener('load', function () {
+            createClickableRegions(img, regionsContainer, ocrRegions, translatedRegions, bubbleGroups);
+        });
+
+        if (img.complete) {
+            createClickableRegions(img, regionsContainer, ocrRegions, translatedRegions, bubbleGroups);
+        }
+    }
+
+    function createClickableRegions(img, container, ocrRegions, translatedRegions, bubbleGroups = []) {
+        const imageId = img.dataset.imageId;
+
+        container.innerHTML = '';
+
+        const rect = img.getBoundingClientRect();
+        const scaleX = rect.width / img.naturalWidth;
+        const scaleY = rect.height / img.naturalHeight;
+
+        const isSavedFormat = translatedRegions && translatedRegions.length > 0 &&
+            translatedRegions[0].hasOwnProperty('translatedText');
+
+        if (isSavedFormat) {
+            console.log('📥 Using saved merged format from server');
+
+            mergedRegionsCache[imageId] = translatedRegions.map((region, idx) => ({
+                bbox: region.bbox,
+                originalText: region.originalText || '',
+                translatedText: region.translatedText || region.text || '',
+                boxId: region.boxId || `img_${imageId}_box_${idx}`,
+                regionIndices: region.regionIndices || region.region_indices || []
+            }));
+
+            mergedRegionsCache[imageId].forEach((region, idx) => {
+                if (!region.boxId || !region.boxId.startsWith(`img_${imageId}_`)) {
+                    region.boxId = `img_${imageId}_box_${idx}`;
+                }
+                boxIdToRegion[region.boxId] = { imageId, regionIndex: idx };
+            });
+        }
+
+        let mergedRegions;
+        const isJapanese = sourceLanguage === 'japanese';
+
+        if (mergedRegionsCache[imageId]) {
+
+            mergedRegions = mergedRegionsCache[imageId];
+
+            mergedRegions.sort((a, b) => {
+                const [ax, ay, aw, ah] = a.bbox || [0, 0, 0, 0];
+                const [bx, by, bw, bh] = b.bbox || [0, 0, 0, 0];
+                const aTopY = ay;
+                const bTopY = by;
+                const aCenterX = ax + (aw / 2);
+                const bCenterX = bx + (bw / 2);
+
+                const yTolerance = 50;
+                const yDiff = aTopY - bTopY;
+
+                if (Math.abs(yDiff) > yTolerance) {
+
+                    return yDiff;
+                } else {
+
+                    if (isJapanese) {
+
+                        return bCenterX - aCenterX;
+                    } else {
+
+                        return aCenterX - bCenterX;
+                    }
+                }
+            });
+        } else if (bubbleGroups && bubbleGroups.length > 0) {
+
+            console.log('🎯 Using pre-computed bubble groups from speech bubble detection');
+            mergedRegions = convertBubbleGroupsToMergedRegions(ocrRegions, translatedRegions, bubbleGroups, imageId);
+
+            mergedRegions.forEach((region, idx) => {
+                boxIdToRegion[region.boxId] = { imageId, regionIndex: idx };
+            });
+
+            mergedRegions.sort((a, b) => {
+                const [ax, ay, aw, ah] = a.bbox || [0, 0, 0, 0];
+                const [bx, by, bw, bh] = b.bbox || [0, 0, 0, 0];
+                const aTopY = ay;
+                const bTopY = by;
+                const aCenterX = ax + (aw / 2);
+                const bCenterX = bx + (bw / 2);
+
+                const yTolerance = 50;
+                const yDiff = aTopY - bTopY;
+
+                if (Math.abs(yDiff) > yTolerance) {
+
+                    return yDiff;
+                } else {
+
+                    if (isJapanese) {
+
+                        return bCenterX - aCenterX;
+                    } else {
+
+                        return aCenterX - bCenterX;
+                    }
+                }
+            });
+
+            mergedRegionsCache[imageId] = mergedRegions;
+        } else {
+
+            console.log('📏 Falling back to proximity-based merging (no bubble groups available)');
+            mergedRegions = mergeNearbyRegions(ocrRegions, translatedRegions);
+
+            mergedRegions.forEach((region, idx) => {
+                region.boxId = `img_${imageId}_box_${idx}`;
+                boxIdToRegion[region.boxId] = { imageId, regionIndex: idx };
+            });
+
+            mergedRegions.sort((a, b) => {
+                const [ax, ay, aw, ah] = a.bbox || [0, 0, 0, 0];
+                const [bx, by, bw, bh] = b.bbox || [0, 0, 0, 0];
+                const aTopY = ay;
+                const bTopY = by;
+                const aCenterX = ax + (aw / 2);
+                const bCenterX = bx + (bw / 2);
+
+                const yTolerance = 50;
+                const yDiff = aTopY - bTopY;
+
+                if (Math.abs(yDiff) > yTolerance) {
+
+                    return yDiff;
+                } else {
+
+                    if (isJapanese) {
+
+                        return bCenterX - aCenterX;
+                    } else {
+
+                        return aCenterX - bCenterX;
+                    }
+                }
+            });
+
+            mergedRegionsCache[imageId] = mergedRegions;
+        }
+
+        console.log(`📊 Original OCR regions: ${ocrRegions.length}, Merged bubbles: ${mergedRegions.length}`);
+        const readingOrder = isJapanese ? 'right-to-left' : 'left-to-right';
+        console.log(`📖 Reading order: ${readingOrder} (sourceLanguage="${sourceLanguage}", isJapanese=${isJapanese})`);
+        console.log(`📋 Sorted regions order (BEFORE creating divs):`);
+        mergedRegions.forEach((region, idx) => {
+            const [x, y, w, h] = region.bbox || [0, 0, 0, 0];
+            const centerX = x + (w / 2);
+            const topY = y;
+            console.log(`  Index ${idx}: Y=${topY.toFixed(0)}, X=${centerX.toFixed(0)} (left=${x.toFixed(0)}, right=${(x + w).toFixed(0)}) - "${(region.originalText || '').substring(0, 30)}..."`);
+        });
+
+        if (mergedRegions.length > 1) {
+            for (let i = 0; i < mergedRegions.length - 1; i++) {
+                const curr = mergedRegions[i];
+                const next = mergedRegions[i + 1];
+                const [cx, cy, cw, ch] = curr.bbox || [0, 0, 0, 0];
+                const [nx, ny, nw, nh] = next.bbox || [0, 0, 0, 0];
+                const currCenterX = cx + (cw / 2);
+                const nextCenterX = nx + (nw / 2);
+                const currTopY = cy;
+                const nextTopY = ny;
+                const sameLine = Math.abs(currTopY - nextTopY) < 50;
+
+                if (sameLine) {
+                    if (isJapanese && currCenterX < nextCenterX) {
+                        console.error(`❌ ERROR: Japanese regions ${i} and ${i + 1} on same line but sorted LEFT-TO-RIGHT!`);
+                        console.error(`   Region ${i}: X=${currCenterX.toFixed(0)}, Region ${i + 1}: X=${nextCenterX.toFixed(0)}`);
+                        console.error(`   Should be: Region ${i + 1} first (higher X), then Region ${i}`);
+                    } else if (!isJapanese && currCenterX > nextCenterX) {
+                        console.error(`❌ ERROR: Korean regions ${i} and ${i + 1} on same line but sorted RIGHT-TO-LEFT!`);
+                    }
+                }
+            }
+        }
+
+        img.dataset.scaleX = scaleX;
+        img.dataset.scaleY = scaleY;
+
+        mergedRegions.forEach((merged, idx) => {
+            createRegionDiv(img, container, merged, idx, imageId, scaleX, scaleY);
+        });
+
+        console.log(`✅ Created ${mergedRegions.length} clickable speech bubbles`);
+    }
+
+    function createRegionDiv(img, container, merged, idx, imageId, scaleX, scaleY) {
+        const { bbox, originalText, translatedText, isMissingTranslation } = merged;
+        const [x, y, width, height] = bbox;
+
+        const displayX = x * scaleX;
+        const displayY = y * scaleY;
+        const displayWidth = width * scaleX;
+        const displayHeight = height * scaleY;
+        const selected = false;
+
+        const isMissing = isMissingTranslation === true;
+
+        const regionDiv = document.createElement('div');
+        regionDiv.className = 'text-region-clickable';
+        regionDiv.dataset.regionIndex = idx;
+        regionDiv.dataset.imageId = imageId;
+        regionDiv.style.cssText = `
+            position: absolute;
+            left: ${displayX}px;
+            top: ${displayY}px;
+            width: ${displayWidth}px;
+            height: ${displayHeight}px;
+            cursor: pointer;
+            pointer-events: auto;
+            border: 2px solid ${isMissing ? 'rgba(239, 68, 68, 0.9)' : 'transparent'};
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            z-index: 10;
+            ${isMissing ? 'background-color: rgba(239, 68, 68, 0.2); box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);' : ''}
+        `;
+
+        regionDiv.addEventListener('mouseenter', function (e) {
+            if (!selected) {
+                if (isMissing) {
+                    this.style.borderColor = 'rgba(239, 68, 68, 1)';
+                    this.style.backgroundColor = 'rgba(239, 68, 68, 0.3)';
+                    this.style.boxShadow = '0 0 12px rgba(239, 68, 68, 0.6)';
+                } else {
+                    this.style.borderColor = 'rgba(59, 130, 246, 0.8)';
+                    this.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';
+                    this.style.boxShadow = '0 0 8px rgba(59, 130, 246, 0.4)';
+                }
+            }
+
+            const currentRegion = mergedRegionsCache[imageId]?.[idx] || merged;
+            if (currentRegion) {
+                showRegionHoverOutline(container, displayX, displayY, displayWidth, displayHeight, isMissing);
+            }
+        });
+
+        regionDiv.addEventListener('mouseleave', function () {
+            if (!selected) {
+                if (isMissing) {
+                    this.style.borderColor = 'rgba(239, 68, 68, 0.9)';
+                    this.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                    this.style.boxShadow = '0 0 8px rgba(239, 68, 68, 0.5)';
+                } else {
+                    this.style.borderColor = 'transparent';
+                    this.style.backgroundColor = 'transparent';
+                    this.style.boxShadow = 'none';
+                }
+            } else {
+
+                this.style.borderColor = 'rgba(34, 197, 94, 0.9)';
+                this.style.backgroundColor = 'rgba(34, 197, 94, 0.2)';
+                this.style.boxShadow = '0 0 8px rgba(34, 197, 94, 0.5)';
+            }
+
+            hideRegionHoverOutline(container);
+        });
+
+        regionDiv.addEventListener('mousemove', function (e) {
+            showRegionHoverOutline(container, displayX, displayY, displayWidth, displayHeight, isMissing);
+        });
+
+        regionDiv.addEventListener('click', function (e) {
+            e.stopPropagation();
+            e.preventDefault();
+            hideRegionHoverOutline(container);
+
+            const currentRegion = mergedRegionsCache[imageId]?.[idx];
+            if (!currentRegion) {
+                console.warn('⚠️ Region not found in cache');
+                return;
+            }
+
+            const displayOriginalText = currentRegion.originalText || '';
+            const displayTranslatedText = currentRegion.translatedText || '';
+
+            const clickX = e.clientX;
+            const clickY = e.clientY;
+            showTranslationPopup(clickX, clickY, displayOriginalText, displayTranslatedText);
+        });
+
+        regionDiv.addEventListener('mousedown', function (e) {
+            e.stopPropagation();
+        });
+
+        container.appendChild(regionDiv);
+    }
+
+    function mergeRegions(imageId, index1, index2, img, container) {
+        const mergedRegions = mergedRegionsCache[imageId];
+        if (!mergedRegions || !mergedRegions[index1] || !mergedRegions[index2]) {
+            console.error('Cannot merge: invalid region indices');
+            return;
+        }
+
+        const region1 = mergedRegions[index1];
+        const region2 = mergedRegions[index2];
+
+        const [x1, y1, w1, h1] = region1.bbox;
+        const [x2, y2, w2, h2] = region2.bbox;
+        const maxX1 = x1 + w1;
+        const maxY1 = y1 + h1;
+        const maxX2 = x2 + w2;
+        const maxY2 = y2 + h2;
+
+        const mergedMinX = Math.min(x1, x2);
+        const mergedMinY = Math.min(y1, y2);
+        const mergedMaxX = Math.max(maxX1, maxX2);
+        const mergedMaxY = Math.max(maxY1, maxY2);
+
+        const centerY1 = (y1 + maxY1) / 2;
+        const centerY2 = (y2 + maxY2) / 2;
+        const verticalGap = Math.abs(centerY1 - centerY2);
+        const textSeparator = verticalGap > 10 ? '\n' : ' ';
+
+        const centerX1 = x1 + w1 / 2;
+        const centerX2 = x2 + w2 / 2;
+        const isJapanese = sourceLanguage === 'japanese';
+
+        let firstRegion, secondRegion;
+        if (isJapanese) {
+
+            if (centerX1 >= centerX2) {
+                firstRegion = region1;
+                secondRegion = region2;
+            } else {
+                firstRegion = region2;
+                secondRegion = region1;
+            }
+            console.log(`📝 Manual merge (Japanese RTL): X1=${centerX1.toFixed(0)}, X2=${centerX2.toFixed(0)} → ${centerX1 >= centerX2 ? 'region1 first' : 'region2 first'}`);
+        } else {
+
+            if (centerX1 <= centerX2) {
+                firstRegion = region1;
+                secondRegion = region2;
+            } else {
+                firstRegion = region2;
+                secondRegion = region1;
+            }
+        }
+
+        const mergedOriginalText = [
+            firstRegion.originalText || '',
+            secondRegion.originalText || ''
+        ].filter(t => t).join(textSeparator);
+
+        const mergedTranslatedText = [
+            firstRegion.translatedText || '',
+            secondRegion.translatedText || ''
+        ].filter(t => t).join(textSeparator);
+
+        const minIndex = Math.min(index1, index2);
+        const maxIndex = Math.max(index1, index2);
+
+        const newBoxId = `img_${imageId}_merged_${Date.now()}`;
+        const mergedRegion = {
+            boxId: newBoxId,
+            bbox: [mergedMinX, mergedMinY, mergedMaxX - mergedMinX, mergedMaxY - mergedMinY],
+            originalText: mergedOriginalText.trim(),
+            translatedText: mergedTranslatedText.trim()
+        };
+
+        if (region1.boxId) delete boxIdToRegion[region1.boxId];
+        if (region2.boxId) delete boxIdToRegion[region2.boxId];
+        boxIdToRegion[newBoxId] = { imageId, regionIndex: minIndex };
+
+        mergedRegions[minIndex] = mergedRegion;
+        mergedRegions.splice(maxIndex, 1);
+
+        mergedRegions.sort((a, b) => {
+            const [ax, ay, aw, ah] = a.bbox || [0, 0, 0, 0];
+            const [bx, by, bw, bh] = b.bbox || [0, 0, 0, 0];
+            const aTopY = ay;
+            const bTopY = by;
+            const aCenterX = ax + (aw / 2);
+            const bCenterX = bx + (bw / 2);
+
+            const yTolerance = 50;
+            const yDiff = aTopY - bTopY;
+
+            if (Math.abs(yDiff) > yTolerance) {
+                return yDiff;
+            } else {
+                if (isJapanese) {
+                    return bCenterX - aCenterX;
+                } else {
+                    return aCenterX - bCenterX;
+                }
+            }
+        });
+
+        mergedRegionsCache[imageId] = mergedRegions;
+
+        mergedRegions.forEach((region, newIdx) => {
+            if (region.boxId) {
+                boxIdToRegion[region.boxId] = { imageId, regionIndex: newIdx };
+            }
+        });
+
+        const scaleX = parseFloat(img.dataset.scaleX);
+        const scaleY = parseFloat(img.dataset.scaleY);
+        container.innerHTML = '';
+        mergedRegions.forEach((merged, idx) => {
+            createRegionDiv(img, container, merged, idx, imageId, scaleX, scaleY);
+        });
+
+        console.log(`✅ Merged regions ${index1} and ${index2} for image ${imageId}`);
+    }
+
+    async function translateAllRegions() {
+        const translateButton = document.getElementById('translate-all-button');
+        const originalButtonText = translateButton.textContent;
+        translateButton.disabled = true;
+        translateButton.textContent = '⏳ Collecting all boxes...';
+
+        try {
+
+            const allRegions = [];
+            const boxIdMapping = {};
+
+            for (const imageId in mergedRegionsCache) {
+
+                let regions = mergedRegionsCache[imageId];
+
+                const isJapanese = sourceLanguage === 'japanese';
+                regions.sort((a, b) => {
+                    const [ax, ay, aw, ah] = a.bbox || [0, 0, 0, 0];
+                    const [bx, by, bw, bh] = b.bbox || [0, 0, 0, 0];
+                    const aTopY = ay;
+                    const bTopY = by;
+                    const aCenterX = ax + (aw / 2);
+                    const bCenterX = bx + (bw / 2);
+
+                    const yTolerance = 50;
+                    const yDiff = aTopY - bTopY;
+
+                    if (Math.abs(yDiff) > yTolerance) {
+                        return yDiff;
+                    } else {
+                        if (isJapanese) {
+                            return bCenterX - aCenterX;
+                        } else {
+                            return aCenterX - bCenterX;
+                        }
+                    }
+                });
+
+                mergedRegionsCache[imageId] = regions;
+
+                regions.forEach((region, idx) => {
+                    if (region.originalText && region.originalText.trim()) {
+
+                        if (!region.boxId || !region.boxId.startsWith(`img_${imageId}_`)) {
+                            region.boxId = `img_${imageId}_box_${idx}`;
+                            boxIdToRegion[region.boxId] = { imageId, regionIndex: idx };
+                        }
+
+                        const [x, y, width, height] = region.bbox || [0, 0, 0, 0];
+                        const centerY = y + (height / 2);
+                        const centerX = x + (width / 2);
+
+                        allRegions.push({
+                            boxId: region.boxId,
+                            text: region.originalText.trim(),
+                            imageId: imageId,
+                            regionIndex: idx,
+                            centerY: centerY,
+                            centerX: centerX,
+                            y: y
+                        });
+                        boxIdMapping[region.boxId] = { imageId, regionIndex: idx };
+                    }
+                });
+            }
+
+            const isJapanese = sourceLanguage === 'japanese';
+
+            console.log(`🔍 Sorting ${allRegions.length} regions for translation (isJapanese=${isJapanese}, sourceLanguage="${sourceLanguage}")`);
+
+            allRegions.sort((a, b) => {
+
+                const yDiff = a.y - b.y;
+
+                const yTolerance = 50;
+
+                if (Math.abs(yDiff) > yTolerance) {
+
+                    return yDiff;
+                } else {
+
+                    if (isJapanese) {
+
+                        const xDiff = b.centerX - a.centerX;
+                        if (Math.abs(yDiff) <= 5) {
+                            console.log(`  Same line (Y diff: ${yDiff.toFixed(0)}): A(X=${a.centerX.toFixed(0)}) vs B(X=${b.centerX.toFixed(0)}) → ${xDiff > 0 ? 'B first (RTL)' : xDiff < 0 ? 'A first (RTL)' : 'equal'}`);
+                        }
+                        return xDiff;
+                    } else {
+
+                        return a.centerX - b.centerX;
+                    }
+                }
+            });
+
+            const readingDirection = isJapanese ? 'right-to-left' : 'left-to-right';
+            console.log(`📋 Boxes in translation order (${readingDirection}):`);
+            allRegions.forEach((item, idx) => {
+                console.log(`  BOX ${idx + 1}: Y=${item.y.toFixed(0)}, X=${item.centerX.toFixed(0)} (left=${(item.centerX - 50).toFixed(0)}, right=${(item.centerX + 50).toFixed(0)}) - "${item.text.substring(0, 30)}..."`);
+            });
+
+            if (isJapanese && allRegions.length > 1) {
+                for (let i = 0; i < allRegions.length - 1; i++) {
+                    const curr = allRegions[i];
+                    const next = allRegions[i + 1];
+                    const sameLine = Math.abs(curr.y - next.y) < 50;
+                    if (sameLine && curr.centerX < next.centerX) {
+                        console.error(`❌ SORTING ERROR: Japanese regions ${i} and ${i + 1} on same line but X is increasing (left-to-right)!`);
+                        console.error(`   Region ${i}: X=${curr.centerX.toFixed(0)}, Region ${i + 1}: X=${next.centerX.toFixed(0)}`);
+                        console.error(`   Should be: Region with higher X first (right-to-left)`);
+                    }
+                }
+            }
+
+            const seenBoxIds = new Set();
+            const duplicates = [];
+            allRegions.forEach(item => {
+                if (seenBoxIds.has(item.boxId)) {
+                    duplicates.push(item.boxId);
+                }
+                seenBoxIds.add(item.boxId);
+            });
+
+            if (duplicates.length > 0) {
+                console.error(`❌ DUPLICATE boxIds found:`, duplicates);
+            }
+
+            const regionsToTranslate = allRegions;
+
+            if (regionsToTranslate.length === 0) {
+                window.showAlertModal('No Boxes', 'No text boxes found to translate', 'error');
+                translateButton.textContent = originalButtonText;
+                translateButton.disabled = false;
+                return;
+            }
+
+            const BATCH_SIZE = 20;
+            const batches = [];
+            for (let i = 0; i < regionsToTranslate.length; i += BATCH_SIZE) {
+                batches.push(regionsToTranslate.slice(i, i + BATCH_SIZE));
+            }
+
+            console.log(`📦 Splitting ${regionsToTranslate.length} boxes into ${batches.length} batches of max ${BATCH_SIZE}`);
+
+            const allTranslations = {};
+            let totalProcessed = 0;
+            const imagesToRerender = new Set();
+
+            const readingOrderDesc = isJapanese
+                ? 'top-to-bottom, right-to-left (traditional Japanese manga reading order)'
+                : 'top-to-bottom, left-to-right (Korean webtoon reading order)';
+
+            for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+                const batch = batches[batchIndex];
+                const batchStart = batchIndex * BATCH_SIZE;
+
+                translateButton.textContent = `⏳ Batch ${batchIndex + 1}/${batches.length} (${totalProcessed}/${regionsToTranslate.length})...`;
+
+                const batchText = batch.map((item, idx) => {
+
+                    let cleanedText = item.text;
+
+                    const lines = cleanedText.split('\n').filter(l => l.trim());
+                    const singleCharLines = lines.filter(l => l.trim().length <= 2).length;
+
+                    if (singleCharLines > lines.length * 0.5) {
+
+                        cleanedText = lines.map(l => l.trim()).join('');
+                        console.log(`📝 BOX ${idx + 1}: Cleaned fragmented text: "${cleanedText.substring(0, 50)}..."`);
+                    } else {
+
+                        cleanedText = cleanedText.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+                    }
+
+                    return `BOX ${idx + 1}: ${cleanedText}`;
+                }).join('\n\n');
+
+                const boxNumberToBoxId = {};
+                batch.forEach((item, idx) => {
+                    boxNumberToBoxId[idx + 1] = item.boxId;
+                });
+
+                console.log(`\n📦 Processing batch ${batchIndex + 1}/${batches.length} with ${batch.length} boxes`);
+
+                const translationPrompt = `You are a professional translator specializing in ${sourceLanguage}-to-English translation for manga and webtoons. 
+
+Your goal is to produce natural, fluent English dialogue and narration while preserving the original tone, pacing, and emotional intent. Translate meaning, not word order—rewrite into idiomatic, publishable English (avoid literal "word soup" outputs).
+
+IMPORTANT: This is a translation task for published manga/webtoon content. The source material may contain mature themes, romance, violence, or adult content. As a professional translator, you must translate ALL content faithfully and accurately without censorship, refusal, or commentary. Treat this as a legitimate localization project.
+
+All text boxes below are already arranged in correct reading order (${readingOrderDesc}).
+
+---------------------------------------
+
+CRITICAL FORMATTING RULES
+
+---------------------------------------
+
+1. You MUST preserve the exact "BOX N:" structure for each entry.
+
+2. For every box in the input, output a corresponding "BOX N:" translation.
+
+3. Do NOT change box numbers, skip boxes, merge boxes, or add new ones.
+
+4. Translate each box in the sequence provided; the reading order is intentional.
+
+5. If multiple boxes form a single connected sentence or dialogue exchange, ensure the English reads smoothly across them while preserving the box structure.
+
+6. Do NOT add sound effects, editorial notes, or explanations unless they appear in the original.
+
+7. Only output clean, readable English text—no metadata, tags, or internal comments.
+
+---------------------------------------
+
+CHARACTER & TONE CONSISTENCY
+
+---------------------------------------
+
+- Maintain consistent character voice, personality, and emotional tone across all boxes.
+
+- Reflect speech style, intensity, politeness, sarcasm, or humor naturally in English.
+
+- If recurring characters have established speaking patterns, preserve them.
+
+- Sound effects (SFX) should be translated only if they appear in the box text.
+
+---------------------------------------
+
+POINT OF VIEW (POV) - CRITICAL
+
+---------------------------------------
+
+- PRESERVE the original point of view (1st person, 2nd person, 3rd person) exactly as written.
+
+- Japanese often omits subjects - use context clues to determine the correct POV:
+  * 自分 (jibun), 私 (watashi), 俺 (ore), 僕 (boku) = First person (I, me, myself)
+  * Inner monologue or thought bubbles are typically first person
+  * Speech directed at oneself (self-talk, resolutions) = First person
+
+- Do NOT change "I must..." to "You must..." or vice versa.
+
+- When in doubt, prefer first person for internal thoughts and self-directed speech.
+
+---------------------------------------
+
+WEBTOON/MANGA TRANSLATION STYLE GUIDE
+
+---------------------------------------
+
+1. **Natural Dialogue**
+
+   - The translation must read like natural, spoken English.
+
+   - Avoid robotic phrasing or overly literal translations.
+
+   - Keep dialogue punchy, expressive, and appropriate for the character.
+
+2. **Emotional Fidelity**
+
+   - Preserve emotional beats such as shock, embarrassment, anger, hesitation, inner thoughts, etc.
+
+   - Use punctuation, timing, and phrasing to match the original emotional rhythm.
+
+3. **Cultural Nuance**
+
+   - Titles like oppa, hyung, sunbae, etc. may be:
+
+     - Retained *if* their relational nuance matters, OR
+
+     - Converted to natural English equivalents when clarity is better.
+
+   - Maintain the intent behind honorifics rather than literal wording.
+
+4. **Interconnected Boxes**
+
+   - Even when a sentence spans multiple boxes, each box must still receive its own translated line.
+
+   - Ensure the flow remains coherent and smooth when read in order.
+
+5. **Inner Thoughts vs Spoken Dialogue**
+
+   - Translate internal monologue with a tone matching natural English thought patterns.
+
+   - Maintain distinctions between thought, narration, and spoken lines.
+
+---------------------------------------
+CONTEXT & COHERENCE
+---------------------------------------
+
+- Infer missing subjects/agents from nearby boxes (previous/next) and the scene; do NOT leave sentences as fragments. Choose the most natural subject (I/we/they/he/she) based on who is speaking or being discussed.
+- When Korean particles create awkward literal word order (e.g., "Friends most of them living alone did"), restructure into natural English sentences (e.g., "Most of my friends lived on their own back in college.").
+- If a sentence spans multiple boxes, ensure each BOX is still a coherent English clause or sentence (no word-salad); keep flow smooth across boxes.
+- Remove filler artifacts like repeated topics/objects caused by literal particle rendering.
+
+---------------------------------------
+FLUENCY & READABILITY (CRITICAL)
+---------------------------------------
+
+- Produce smooth, idiomatic English. Do NOT preserve source word order; reorder into natural English (SVO) and fix grammar.
+- Remove awkward literal fragments. If a sentence spans multiple boxes, still make each BOX read as a coherent, natural English line (no word salad).
+- Resolve particles/post-positions into normal English phrasing (e.g., 을/를/은/는/이/가 → proper subject/object order).
+- If a direct literal rendering sounds unnatural, rewrite it to sound like a professionally localized comic line while keeping the meaning.
+- When multiple short clauses in a box form one idea (e.g., "Really. One once. There wasn't."), rewrite into a single natural sentence with proper negation and subject inferred from context (e.g., "It really never happened once."). Do NOT leave broken fragments.
+- For Korean, always convert SOV to natural English SVO; merge topic/particles into fluent phrasing (e.g., "후문 쪽에 방 얻어서 자취 해" → "I rented a room by the back gate, living on my own.").
+- Do NOT add acknowledgements, instructions, or meta-text (e.g., "Okay, I understand"). Output only the translated English line for each BOX.
+- If the English sounds choppy or enumerated (e.g., "College student times. Friends most of the time living alone. I did."), rewrite it into one or two fluent sentences: "Most of my friends lived on their own during college." Always choose the most natural phrasing while preserving meaning.
+- Ignore or remove any stray tokens like [IMAGE_X] unless they are clearly part of the original text. Do NOT echo placeholders or artifacts; only translate meaningful text.
+
+${sourceLanguage === 'japanese' ? `---------------------------------------
+
+JAPANESE-SPECIFIC GRAMMAR & SENTENCE STRUCTURE
+
+---------------------------------------
+
+**CRITICAL FOR JAPANESE TRANSLATIONS:**
+
+1. **Sentence Order Correction**
+
+   - Japanese uses SOV (Subject-Object-Verb) order, while English uses SVO (Subject-Verb-Object).
+
+   - You MUST rearrange Japanese sentences into natural English word order.
+
+   - Example: "私は本を読む" (I book read) → "I read a book" (NOT "I book read").
+
+2. **Particle Understanding**
+
+   - Japanese particles (は, が, を, に, で, etc.) indicate grammatical relationships.
+
+   - Translate the MEANING, not the literal particle placement.
+
+   - The particle tells you what role each word plays—use that to construct proper English grammar.
+
+3. **Verb Endings & Politeness**
+
+   - Japanese verb endings indicate tense, politeness, and formality.
+
+   - Translate the appropriate English tense and register (formal/informal).
+
+   - Example: "です/ます" forms → polite English; plain forms → casual English.
+
+4. **Topic-Comment Structure**
+
+   - Japanese often uses topic-comment structure (Xは Yです = "As for X, it is Y").
+
+   - Convert to natural English subject-predicate structure.
+
+   - Example: "私は学生です" → "I am a student" (NOT "As for me, I am a student").
+
+5. **Double-Check Grammar**
+
+   - After translating, read the English aloud to verify it sounds natural.
+
+   - If the sentence feels backwards or awkward, restructure it to proper English grammar.
+
+   - Japanese sentence structure is fundamentally different—always convert to English word order.
+
+   - Verify: Does the English sentence follow Subject-Verb-Object order? Does it read naturally?
+
+6. **Context-Aware Translation**
+
+   - Consider the full context when multiple boxes form one sentence.
+
+   - Japanese often places important information at the end—rearrange for English emphasis.
+
+   - Ensure the English flows logically from box to box when read in sequence.
+
+---------------------------------------
+
+` : ''}---------------------------------------
+
+QUALITY CONTROL
+
+---------------------------------------
+
+Before completing your output:
+
+- Ensure every input box has a corresponding "BOX N:" output.
+
+- Check that numbering, order, and structure are fully preserved.
+
+- Confirm that translations flow naturally when read from BOX 1 onward.
+
+- Make sure no boxes were omitted, merged, or altered.
+
+---------------------------------------
+
+OUTPUT RULES
+
+---------------------------------------
+
+- Begin each line with:  BOX N:
+
+- Translate boxes strictly in sequential order.
+
+- Output ONLY the translated English text for each numbered box.
+
+- No notes, no commentary, no explanations.
+
+---------------------------------------
+
+INPUT BOXES
+
+---------------------------------------
+
+${batchText}
+
+---------------------------------------
+
+BEGIN TRANSLATION BELOW
+
+---------------------------------------
+
+Remember: Output must start with "BOX 1:" and follow the order exactly.`;
+
+                const response = await window.fetchWithCSRF('/api/translate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: translationPrompt,
+                        source_language: sourceLanguage
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Translation failed' }));
+                    throw new Error(errorData.error || 'Translation failed');
+                }
+
+                const data = await response.json();
+                const translatedBatch = data.translated_text || data.translatedText || '';
+
+                if (!translatedBatch) {
+                    throw new Error('No translation received from server');
+                }
+
+                const translations = {};
+
+                console.log('📝 Raw translation response:', translatedBatch.substring(0, 500) + '...');
+
+                const boxNumberPattern = /BOX\s+(\d+)\s*:\s*([\s\S]*?)(?=BOX\s+\d+\s*:|$)/gi;
+                let match;
+                let foundMatches = 0;
+
+                while ((match = boxNumberPattern.exec(translatedBatch)) !== null) {
+                    const boxNumber = parseInt(match[1]);
+                    let translatedText = match[2].trim();
+
+                    translatedText = translatedText.replace(/^\s+|\s+$/g, '');
+
+                    const boxId = boxNumberToBoxId[boxNumber];
+                    if (boxId && translatedText) {
+                        translations[boxId] = translatedText;
+                        foundMatches++;
+                        console.log(`✅ Parsed BOX ${boxNumber} → boxId ${boxId}: "${translatedText.substring(0, 50)}..."`);
+                    } else if (!boxId) {
+                        console.warn(`⚠️ No boxId mapping for BOX ${boxNumber}`);
+                    } else {
+                        console.warn(`⚠️ Empty translation for BOX ${boxNumber}`);
+                    }
+                }
+
+                console.log(`📊 Strategy 1 (BOX N: pattern): Found ${foundMatches} translations`);
+
+                if (foundMatches < regionsToTranslate.length) {
+                    console.log('📝 Trying Strategy 2: Split by BOX keyword');
+                    const boxParts = translatedBatch.split(/(?=BOX\s+\d+)/i).filter(p => p.trim());
+
+                    boxParts.forEach(part => {
+                        const partMatch = part.match(/^BOX\s+(\d+)\s*:\s*([\s\S]*)/i);
+                        if (partMatch) {
+                            const boxNumber = parseInt(partMatch[1]);
+                            const translatedText = partMatch[2].trim();
+                            const boxId = boxNumberToBoxId[boxNumber];
+
+                            if (boxId && translatedText && !translations[boxId]) {
+                                translations[boxId] = translatedText;
+                                console.log(`✅ Strategy 2 found BOX ${boxNumber}: "${translatedText.substring(0, 50)}..."`);
+                            }
+                        }
+                    });
+                }
+
+                const translatedCount = Object.keys(translations).length;
+                if (translatedCount < regionsToTranslate.length) {
+                    console.log(`📝 Strategy 3: Sequential fallback (have ${translatedCount}/${regionsToTranslate.length})`);
+
+                    const lines = translatedBatch.split('\n').filter(l => {
+                        const trimmed = l.trim();
+                        return trimmed && !trimmed.match(/^BOX\s+\d+\s*:?\s*$/i) && !trimmed.match(/^-+$/);
+                    });
+
+                    let lineIndex = 0;
+                    regionsToTranslate.forEach((item, idx) => {
+                        if (!translations[item.boxId] && lineIndex < lines.length) {
+                            let text = lines[lineIndex].trim();
+                            text = text.replace(/^BOX\s+\d+:\s*/i, '');
+                            if (text) {
+                                translations[item.boxId] = text;
+                                console.log(`✅ Strategy 3 assigned line ${lineIndex} to box ${idx + 1}: "${text.substring(0, 50)}..."`);
+                            }
+                            lineIndex++;
+                        }
+                    });
+                }
+
+                console.log(`📊 Batch ${batchIndex + 1} translation count: ${Object.keys(translations).length}/${batch.length}`);
+
+                batch.forEach((item, idx) => {
+                    if (!translations[item.boxId]) {
+                        console.error(`❌ Missing translation for batch BOX ${idx + 1} (boxId: ${item.boxId})`);
+                    }
+                });
+
+                for (const boxId in translations) {
+                    let found = false;
+
+                    for (const imageId in mergedRegionsCache) {
+                        const regions = mergedRegionsCache[imageId];
+                        if (!regions) continue;
+
+                        const region = regions.find(r => r.boxId === boxId);
+                        if (region) {
+                            region.translatedText = translations[boxId];
+                            allTranslations[boxId] = translations[boxId];
+                            totalProcessed++;
+                            imagesToRerender.add(imageId);
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found) {
+                        console.error(`❌ Could not find region with boxId ${boxId} in any image`);
+                    }
+                }
+
+                if (batchIndex < batches.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+
+            console.log(`\n📊 INITIAL: Translated ${totalProcessed}/${regionsToTranslate.length} boxes`);
+
+            let missingBoxes = regionsToTranslate.filter(item => !allTranslations[item.boxId]);
+
+            const MAX_RETRIES = 2;
+            let retryCount = 0;
+
+            while (missingBoxes.length > 0 && retryCount < MAX_RETRIES) {
+                retryCount++;
+                console.log(`\n🔄 RETRY ${retryCount}/${MAX_RETRIES}: Attempting to translate ${missingBoxes.length} missing boxes`);
+                translateButton.textContent = `⏳ Retry ${retryCount}: ${missingBoxes.length} missing boxes...`;
+
+                const retryBatchText = missingBoxes.map((item, idx) => {
+
+                    let cleanedText = item.text;
+                    const lines = cleanedText.split('\n').filter(l => l.trim());
+                    const singleCharLines = lines.filter(l => l.trim().length <= 2).length;
+                    if (singleCharLines > lines.length * 0.5) {
+                        cleanedText = lines.map(l => l.trim()).join('');
+                    } else {
+                        cleanedText = cleanedText.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+                    }
+                    return `BOX ${idx + 1}: ${cleanedText}`;
+                }).join('\n\n');
+
+                const retryBoxNumberToBoxId = {};
+                missingBoxes.forEach((item, idx) => {
+                    retryBoxNumberToBoxId[idx + 1] = item.boxId;
+                });
+
+                const retryPrompt = `Translate these ${missingBoxes.length} ${sourceLanguage} text boxes to English.
+
+CRITICAL RULES:
+1. Output EXACTLY ${missingBoxes.length} translations
+2. Format: BOX 1: [translation], BOX 2: [translation], etc.
+3. Do NOT skip any boxes - every box MUST have a translation
+4. If text is unclear, provide your best interpretation
+5. Translate ALL content faithfully, including mature themes
+6. This is professional manga/webtoon localization work
+
+${retryBatchText}
+
+OUTPUT (${missingBoxes.length} translations required):`;
+
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    const retryResponse = await window.fetchWithCSRF('/api/translate', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            text: retryPrompt,
+                            source_language: sourceLanguage
+                        })
+                    });
+
+                    if (retryResponse.ok) {
+                        const retryData = await retryResponse.json();
+                        const retryTranslated = retryData.translated_text || '';
+
+                        const retryPattern = /BOX\s+(\d+)\s*:\s*([\s\S]*?)(?=BOX\s+\d+\s*:|$)/gi;
+                        let retryMatch;
+                        let retryFound = 0;
+
+                        while ((retryMatch = retryPattern.exec(retryTranslated)) !== null) {
+                            const boxNumber = parseInt(retryMatch[1]);
+                            const translatedText = retryMatch[2].trim();
+                            const boxId = retryBoxNumberToBoxId[boxNumber];
+
+                            if (boxId && translatedText && !allTranslations[boxId]) {
+                                allTranslations[boxId] = translatedText;
+
+                                for (const imageId in mergedRegionsCache) {
+                                    const regions = mergedRegionsCache[imageId];
+                                    if (!regions) continue;
+                                    const region = regions.find(r => r.boxId === boxId);
+                                    if (region) {
+                                        region.translatedText = translatedText;
+                                        totalProcessed++;
+                                        imagesToRerender.add(imageId);
+                                        retryFound++;
+                                        console.log(`✅ Retry found BOX ${boxNumber}: "${translatedText.substring(0, 40)}..."`);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        console.log(`📊 Retry ${retryCount} recovered ${retryFound} translations`);
+                    }
+                } catch (retryError) {
+                    console.error(`❌ Retry ${retryCount} failed:`, retryError);
+                }
+
+                missingBoxes = regionsToTranslate.filter(item => !allTranslations[item.boxId]);
+            }
+
+            console.log(`\n📊 FINAL: Translated ${totalProcessed}/${regionsToTranslate.length} boxes`);
+
+            if (missingBoxes.length > 0) {
+                console.error(`❌ ${missingBoxes.length} boxes still missing after ${MAX_RETRIES} retries`);
+                const missingBoxIds = new Set(missingBoxes.map(item => item.boxId));
+                for (const imageId in mergedRegionsCache) {
+                    const regions = mergedRegionsCache[imageId];
+                    if (!regions) continue;
+                    let hasMissing = false;
+                    regions.forEach(region => {
+                        region.isMissingTranslation = missingBoxIds.has(region.boxId);
+                        if (region.isMissingTranslation) hasMissing = true;
+                    });
+                    if (hasMissing) imagesToRerender.add(imageId);
+                }
+            }
+
+            imagesToRerender.forEach(imageId => {
+                const img = document.querySelector(`[data-image-id="${imageId}"]`);
+                if (!img) return;
+
+                const container = img.parentElement?.querySelector('.text-regions-container');
+                if (!container) return;
+
+                if (!img.complete || img.naturalWidth === 0) {
+                    img.addEventListener('load', function rerenderOnLoad() {
+                        rerenderImageRegions(img, container, imageId);
+                        img.removeEventListener('load', rerenderOnLoad);
+                    }, { once: true });
+                } else {
+
+                    setTimeout(() => {
+                        rerenderImageRegions(img, container, imageId);
+                    }, 100);
+                }
+            });
+
+            translateButton.textContent = `⏳ Saving translations...`;
+            for (const imageId of imagesToRerender) {
+                await saveTranslationsToServer(imageId);
+            }
+
+            const successMsg = missingBoxes.length > 0
+                ? `✅ ${totalProcessed}/${regionsToTranslate.length} translated (${missingBoxes.length} failed - shown in red)`
+                : `✅ Translated ${totalProcessed} boxes!`;
+            translateButton.textContent = successMsg;
+            setTimeout(() => {
+                translateButton.textContent = originalButtonText;
+            }, 4000);
+
+            console.log(`✅ Batch translated ${totalProcessed} regions`);
+
+        } catch (error) {
+            console.error('❌ Batch translation error:', error);
+            window.showAlertModal('Translation Failed', error.message, 'error');
+            translateButton.textContent = originalButtonText;
+        } finally {
+            translateButton.disabled = false;
+        }
+    }
+
+    async function saveTranslationsToServer(imageId) {
+        
+        const regions = mergedRegionsCache[imageId];
+        if (!regions || regions.length === 0) {
+            console.warn(`No regions to save for image ${imageId}`);
+            return;
+        }
+
+        const translatedRegions = regions.map(region => ({
+            bbox: region.bbox,
+            originalText: region.originalText || '',
+            translatedText: region.translatedText || '',
+            boxId: region.boxId || ''
+        }));
+
+        try {
+            const response = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/translations`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    translated_regions: translatedRegions
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ error: 'Failed to save' }));
+                throw new Error(errorData.error || 'Failed to save translations');
+            }
+
+            console.log(`✅ Saved translations for image ${imageId}`);
+        } catch (error) {
+            console.error(`❌ Failed to save translations for image ${imageId}:`, error);
+
+        }
+    }
+
+    function rerenderImageRegions(img, container, imageId) {
+
+        if (!img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) {
+            console.warn(`Image ${imageId} not ready for re-rendering (naturalWidth: ${img.naturalWidth}, naturalHeight: ${img.naturalHeight})`);
+
+            setTimeout(() => rerenderImageRegions(img, container, imageId), 200);
+            return;
+        }
+
+        const rect = img.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) {
+            console.warn(`Image ${imageId} has zero display size`);
+            return;
+        }
+
+        const scaleX = rect.width / img.naturalWidth;
+        const scaleY = rect.height / img.naturalHeight;
+
+        img.dataset.scaleX = scaleX;
+        img.dataset.scaleY = scaleY;
+
+        let mergedRegions = mergedRegionsCache[imageId];
+        if (!mergedRegions || mergedRegions.length === 0) {
+            console.warn(`No regions found for image ${imageId}`);
+            return;
+        }
+
+        const isJapanese = sourceLanguage === 'japanese';
+        mergedRegions.sort((a, b) => {
+            const [ax, ay, aw, ah] = a.bbox || [0, 0, 0, 0];
+            const [bx, by, bw, bh] = b.bbox || [0, 0, 0, 0];
+            const aTopY = ay;
+            const bTopY = by;
+            const aCenterX = ax + (aw / 2);
+            const bCenterX = bx + (bw / 2);
+
+            const yTolerance = 50;
+            const yDiff = aTopY - bTopY;
+
+            if (Math.abs(yDiff) > yTolerance) {
+                return yDiff;
+            } else {
+                if (isJapanese) {
+                    return bCenterX - aCenterX;
+                } else {
+                    return aCenterX - bCenterX;
+                }
+            }
+        });
+
+        mergedRegionsCache[imageId] = mergedRegions;
+
+        mergedRegions.forEach((region, newIdx) => {
+            if (region.boxId) {
+                boxIdToRegion[region.boxId] = { imageId, regionIndex: newIdx };
+            }
+        });
+
+        container.innerHTML = '';
+
+        mergedRegions.forEach((merged, idx) => {
+
+            if (!merged.bbox || merged.bbox.length !== 4) {
+                console.warn(`Region ${idx} for image ${imageId} has invalid bbox:`, merged.bbox);
+                return;
+            }
+
+            createRegionDiv(img, container, merged, idx, imageId, scaleX, scaleY);
+        });
+
+        console.log(`✅ Re-rendered ${mergedRegions.length} regions for image ${imageId} with scale (${scaleX.toFixed(3)}, ${scaleY.toFixed(3)}) in ${isJapanese ? 'right-to-left' : 'left-to-right'} order`);
+    }
+
+    
+    function convertBubbleGroupsToMergedRegions(ocrRegions, translatedRegions, bubbleGroups, imageId) {
+        if (!bubbleGroups || bubbleGroups.length === 0) {
+            return [];
+        }
+
+        const isJapanese = sourceLanguage === 'japanese';
+        const mergedRegions = [];
+
+        bubbleGroups.forEach((group, groupIdx) => {
+            const regionIndices = group.region_indices || [];
+            const bubbleBbox = group.bbox;
+
+            if (!bubbleBbox || regionIndices.length === 0) {
+                return;
+            }
+
+            const sortedIndices = [...regionIndices].sort((a, b) => {
+                const regionA = ocrRegions[a];
+                const regionB = ocrRegions[b];
+                if (!regionA || !regionB) return 0;
+
+                const centerXA = regionA.bbox[0] + regionA.bbox[2] / 2;
+                const centerXB = regionB.bbox[0] + regionB.bbox[2] / 2;
+                const centerYA = regionA.bbox[1] + regionA.bbox[3] / 2;
+                const centerYB = regionB.bbox[1] + regionB.bbox[3] / 2;
+
+                const yDiff = centerYA - centerYB;
+                if (Math.abs(yDiff) > 20) {
+                    return yDiff;
+                }
+
+                if (isJapanese) {
+                    return centerXB - centerXA;
+                } else {
+                    return centerXA - centerXB;
+                }
+            });
+
+            let combinedOriginalText = '';
+            let combinedTranslatedText = '';
+
+            sortedIndices.forEach(idx => {
+                const ocr = ocrRegions[idx];
+                const translated = translatedRegions && translatedRegions[idx];
+
+                if (ocr && ocr.text) {
+                    if (combinedOriginalText) {
+                        combinedOriginalText += '\n' + ocr.text;
+                    } else {
+                        combinedOriginalText = ocr.text;
+                    }
+                }
+
+                if (translated && translated.text) {
+                    if (combinedTranslatedText) {
+                        combinedTranslatedText += '\n' + translated.text;
+                    } else {
+                        combinedTranslatedText = translated.text;
+                    }
+                }
+            });
+
+            mergedRegions.push({
+                bbox: bubbleBbox,
+                originalText: combinedOriginalText.trim(),
+                translatedText: combinedTranslatedText.trim(),
+                boxId: `img_${imageId}_box_${groupIdx}`,
+                bubbleId: group.bubble_id,
+                panelId: group.panel_id,
+                regionIndices: regionIndices,
+                isFromBubbleDetection: true
+            });
+        });
+
+        console.log(`🎯 Converted ${bubbleGroups.length} bubble groups to ${mergedRegions.length} merged regions`);
+        return mergedRegions;
+    }
+
+    function mergeNearbyRegions(ocrRegions, translatedRegions) {
+        if (!ocrRegions || ocrRegions.length === 0) return [];
+
+        const MERGE_THRESHOLD_X = 40;
+        const MERGE_THRESHOLD_Y = 25;
+        const MAX_VERTICAL_GAP = 50;
+        const MAX_HORIZONTAL_GAP = 60;
+        const MIN_OVERLAP_RATIO = 0.3;
+
+        const isJapanese = sourceLanguage === 'japanese';
+
+        const merged = [];
+        const used = new Set();
+
+        function shouldMergeRegions(region1Bbox, region2Bbox) {
+            const [x1, y1, w1, h1] = region1Bbox;
+            const [x2, y2, w2, h2] = region2Bbox;
+            const maxX1 = x1 + w1;
+            const maxY1 = y1 + h1;
+            const maxX2 = x2 + w2;
+            const maxY2 = y2 + h2;
+
+            const distanceX = Math.max(0, Math.max(x1 - maxX2, x2 - maxX1));
+            const distanceY = Math.max(0, Math.max(y1 - maxY2, y2 - maxY1));
+
+            const overlapsX = !(maxX1 < x2 || x1 > maxX2);
+            const overlapsY = !(maxY1 < y2 || y1 > maxY2);
+            const overlaps = overlapsX && overlapsY;
+
+            let overlapRatio = 0;
+            if (overlaps) {
+                const overlapWidth = Math.min(maxX1, maxX2) - Math.max(x1, x2);
+                const overlapHeight = Math.min(maxY1, maxY2) - Math.max(y1, y2);
+                const overlapArea = overlapWidth * overlapHeight;
+                const area1 = w1 * h1;
+                const area2 = w2 * h2;
+                const minArea = Math.min(area1, area2);
+                overlapRatio = minArea > 0 ? overlapArea / minArea : 0;
+            }
+
+            const centerY1 = y1 + h1 / 2;
+            const centerY2 = y2 + h2 / 2;
+            const verticalGap = Math.abs(centerY1 - centerY2);
+
+            const avgHeight = (h1 + h2) / 2;
+            const verticalAlignment = verticalGap <= avgHeight * 1.5;
+
+            const centerX1 = x1 + w1 / 2;
+            const centerX2 = x2 + w2 / 2;
+            const horizontalCenterGap = Math.abs(centerX1 - centerX2);
+
+            return (
+                (overlaps && overlapRatio >= MIN_OVERLAP_RATIO) ||
+                (overlapsX && verticalAlignment && verticalGap <= MAX_VERTICAL_GAP) ||
+                (distanceX <= MERGE_THRESHOLD_X && distanceY <= MERGE_THRESHOLD_Y &&
+                    horizontalCenterGap <= MAX_HORIZONTAL_GAP && verticalGap <= MAX_VERTICAL_GAP)
+            );
+        }
+
+        for (let i = 0; i < ocrRegions.length; i++) {
+            if (used.has(i)) continue;
+
+            const bubbleIndices = [i];
+            used.add(i);
+
+            let minX = ocrRegions[i].bbox[0];
+            let minY = ocrRegions[i].bbox[1];
+            let maxX = ocrRegions[i].bbox[0] + ocrRegions[i].bbox[2];
+            let maxY = ocrRegions[i].bbox[1] + ocrRegions[i].bbox[3];
+
+            let foundMore = true;
+            while (foundMore) {
+                foundMore = false;
+                for (let j = 0; j < ocrRegions.length; j++) {
+                    if (used.has(j)) continue;
+
+                    const otherBbox = ocrRegions[j].bbox;
+                    const currentBbox = [minX, minY, maxX - minX, maxY - minY];
+
+                    if (shouldMergeRegions(currentBbox, otherBbox)) {
+
+                        bubbleIndices.push(j);
+                        used.add(j);
+
+                        const [ox, oy, ow, oh] = otherBbox;
+                        minX = Math.min(minX, ox);
+                        minY = Math.min(minY, oy);
+                        maxX = Math.max(maxX, ox + ow);
+                        maxY = Math.max(maxY, oy + oh);
+
+                        foundMore = true;
+                    }
+                }
+            }
+
+            const sortedIndices = bubbleIndices.sort((a, b) => {
+                const regionA = ocrRegions[a];
+                const regionB = ocrRegions[b];
+                const centerXA = regionA.bbox[0] + regionA.bbox[2] / 2;
+                const centerXB = regionB.bbox[0] + regionB.bbox[2] / 2;
+
+                if (isJapanese) {
+
+                    return centerXB - centerXA;
+                } else {
+
+                    return centerXA - centerXB;
+                }
+            });
+
+            let combinedOriginalText = '';
+            let combinedTranslatedText = '';
+
+            for (const idx of sortedIndices) {
+                const ocr = ocrRegions[idx];
+                const translated = idx < translatedRegions.length ? translatedRegions[idx] : null;
+
+                const textSeparator = '\n';
+
+                if (ocr.text) {
+                    if (combinedOriginalText) {
+                        combinedOriginalText += textSeparator + ocr.text;
+                    } else {
+                        combinedOriginalText = ocr.text;
+                    }
+                }
+
+                if (translated && translated.text) {
+                    if (combinedTranslatedText) {
+                        combinedTranslatedText += textSeparator + translated.text;
+                    } else {
+                        combinedTranslatedText = translated.text;
+                    }
+                }
+            }
+
+            const mergedRegion = {
+                boxId: null,
+                bbox: [minX, minY, maxX - minX, maxY - minY],
+                originalText: combinedOriginalText.trim(),
+                translatedText: combinedTranslatedText.trim()
+            };
+            merged.push(mergedRegion);
+
+            if (isJapanese && sortedIndices.length > 1) {
+                console.log(`📝 Merged ${sortedIndices.length} regions (RTL order):`,
+                    sortedIndices.map(idx => {
+                        const r = ocrRegions[idx];
+                        return `X=${(r.bbox[0] + r.bbox[2] / 2).toFixed(0)}`;
+                    }).join(' → ')
+                );
+            }
+        }
+
+        return merged;
+    }
+
+    function showTranslationPopup(x, y, originalText, translatedText) {
+        console.log('showTranslationPopup called:', { x, y, originalText, translatedText });
+
+        const existing = document.getElementById('translation-popup');
+        if (existing) {
+            existing.remove();
+        }
+
+        const popup = document.createElement('div');
+        popup.id = 'translation-popup';
+
+        let popupX = x + 10;
+        let popupY = y + 10;
+
+        popup.style.cssText = `
+            position: fixed;
+            left: ${popupX}px;
+            top: ${popupY}px;
+            background: white;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+            padding: 15px 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10001;
+            max-width: 600px;
+            width: max-content;
+            max-height: 80vh;
+            overflow-y: auto;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        `;
+
+        const displayOriginal = originalText || '(No OCR text detected)';
+        const displayTranslated = translatedText || '(Click "Translate All" to translate all boxes)';
+
+        const translationStyle = translatedText
+            ? 'color: #1a202c; font-weight: 500;'
+            : 'color: #a0aec0; font-style: italic;';
+
+        const isJapanese = sourceLanguage === 'japanese';
+        const displayOriginalHorizontal = isJapanese ? displayOriginal : displayOriginal.replace(/\n+/g, ' ').trim();
+        const displayTranslatedHorizontal = displayTranslated.replace(/\n+/g, ' ').trim();
+
+        const originalTextStyle = isJapanese
+            ? 'white-space: pre-wrap;'
+            : 'white-space: normal; word-wrap: break-word;';
+
+        popup.innerHTML = `
+            <button onclick="closeTranslationPopup(); event.stopPropagation();" 
+                    style="position: absolute; top: 5px; right: 5px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #718096; line-height: 1; padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">×</button>
+            <div style="margin-bottom: 10px; margin-right: 25px;">
+                <strong style="color: #718096; font-size: 0.85rem; display: block; margin-bottom: 5px;">Original:</strong>
+                <p style="margin: 0; color: #2d3748; line-height: 1.4; ${originalTextStyle}">${escapeHtml(displayOriginalHorizontal)}</p>
+            </div>
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 10px; margin-right: 25px;">
+                <strong style="color: #3b82f6; font-size: 0.85rem; display: block; margin-bottom: 5px;">Translation:</strong>
+                <p style="margin: 0; ${translationStyle} line-height: 1.5; white-space: normal; word-wrap: break-word;">${escapeHtml(displayTranslatedHorizontal)}</p>
+            </div>
+        `;
+
+        document.body.appendChild(popup);
+
+        requestAnimationFrame(() => {
+            const popupRect = popup.getBoundingClientRect();
+            let newX = popupX;
+            let newY = popupY;
+
+            if (newX + popupRect.width > window.innerWidth - 10) {
+                newX = x - popupRect.width - 10;
+            }
+
+            if (newY + popupRect.height > window.innerHeight - 10) {
+                newY = y - popupRect.height - 10;
+            }
+
+            if (newX < 10) newX = 10;
+            if (newY < 10) newY = 10;
+
+            popup.style.left = newX + 'px';
+            popup.style.top = newY + 'px';
+        });
+
+        setTimeout(() => {
+            const closeHandler = function (e) {
+                if (popup && !popup.contains(e.target)) {
+                    closeTranslationPopup();
+                    document.removeEventListener('click', closeHandler);
+                }
+            };
+            document.addEventListener('click', closeHandler);
+        }, 100);
+    }
+
+    function closeTranslationPopup() {
+        const popup = document.getElementById('translation-popup');
+        if (popup) {
+            popup.remove();
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+
+<style>
+    .webtoon-image-item {
+        
+    }
+
+    .chapter-content:not(.collapsed) {
+        max-height: 50000px !important;
+        opacity: 1 !important;
+        padding-top: 10px !important;
+        padding-bottom: 10px !important;
+    }
+
+    .chapter-header:hover {
+        background: rgba(99, 102, 241, 0.15) !important;
+    }
+</style>
+
+<script>
+
+    function confirmDeleteImage(jobId, imageId, chapterNum, pageOrder) {
+        window.showConfirmationModal(
+            'Delete Image?',
+            `Are you sure you want to delete this image (Chapter ${chapterNum}, Page ${pageOrder})? This action cannot be undone.`,
+            async () => {
+                try {
+                    const response = await fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}`, {
+                        method: 'DELETE'
+                    });
+
+                    const result = await response.json();
+
+                    if (response.ok) {
+                        window.showAlertModal('Deleted', 'Image deleted successfully.', 'success');
+
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        throw new Error(result.error || 'Failed to delete image');
+                    }
+                } catch (error) {
+                    console.error('Error deleting image:', error);
+                    window.showAlertModal('Error', error.message, 'error');
+                }
+            }
+        );
+    }
+
+    async function processImageWithNanoBanana(jobId, imageId, button) {
+        if (button.disabled) return;
+
+        button.disabled = true;
+        const originalContent = button.innerHTML;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
+
+        try {
+            const response = await fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/process`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    ocr_method: 'nanobananapro'
+                })
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                window.showAlertModal('Processing Started', 'Image is being processed with Nano Banana Pro. The page will reload shortly.', 'success');
+
+                setTimeout(() => {
+                    window.location.reload();
+                }, 5000);
+            } else {
+                throw new Error(result.error || 'Failed to start processing');
+            }
+        } catch (error) {
+            console.error('Error processing image:', error);
+            window.showAlertModal('Error', error.message, 'error');
+            button.disabled = false;
+            button.innerHTML = originalContent;
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,267 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 800px; margin: 40px auto;">
+    <header
+        style="background: var(--bg-secondary); padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); margin-bottom: 30px; border: 1px solid var(--border-light);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1 style="color: var(--primary-color); margin: 0;">👤 My Profile</h1>
+            <a href="/" class="btn btn-primary">← Back</a>
+        </div>
+    </header>
+
+    <div id="alert-container"></div>
+
+
+    <div
+        style="background: var(--bg-secondary); padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); margin-bottom: 30px; border: 1px solid var(--border-light);">
+        <h2 style="color: var(--text-primary); margin-bottom: 20px;">Account Information</h2>
+
+        <div style="margin-bottom: 20px;">
+            <label
+                style="display: block; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Username</label>
+            <p id="username-display"
+                style="padding: 12px; background: var(--bg-primary); border-radius: 8px; color: var(--text-primary); margin: 0; border: 1px solid var(--border-light);">
+            </p>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Email
+                Address</label>
+            <p id="email-display"
+                style="padding: 12px; background: var(--bg-primary); border-radius: 8px; color: var(--text-primary); margin: 0; border: 1px solid var(--border-light);">
+            </p>
+        </div>
+
+        <div>
+            <label style="display: block; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Member
+                Since</label>
+            <p id="created-display"
+                style="padding: 12px; background: var(--bg-primary); border-radius: 8px; color: var(--text-primary); margin: 0; border: 1px solid var(--border-light);">
+            </p>
+        </div>
+    </div>
+
+
+    <div
+        style="background: var(--bg-secondary); padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); margin-bottom: 30px; border: 1px solid var(--border-light);">
+        <h2 style="color: var(--text-primary); margin-bottom: 20px;">Change Email Address</h2>
+
+        <form id="email-form" style="display: flex; flex-direction: column; gap: 15px;">
+            <div>
+                <label style="display: block; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">New
+                    Email Address</label>
+                <input type="email" id="new-email" name="email" required class="form-control"
+                    style="width: 100%; padding: 12px; border: 2px solid var(--border-light); border-radius: 8px; font-size: 1rem; box-sizing: border-box; background: var(--bg-primary); color: var(--text-primary);">
+            </div>
+
+            <button type="submit" class="btn btn-success" style="padding: 12px; font-size: 1rem;">
+                ✓ Update Email
+            </button>
+        </form>
+    </div>
+
+
+    <div
+        style="background: var(--bg-secondary); padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); margin-bottom: 30px; border: 1px solid var(--border-light);">
+        <h2 style="color: var(--text-primary); margin-bottom: 20px;">Change Password</h2>
+
+        <form id="password-form" style="display: flex; flex-direction: column; gap: 15px;">
+            <div>
+                <label
+                    style="display: block; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Current
+                    Password</label>
+                <input type="password" id="old-password" name="old_password" required class="form-control"
+                    style="width: 100%; padding: 12px; border: 2px solid var(--border-light); border-radius: 8px; font-size: 1rem; box-sizing: border-box; background: var(--bg-primary); color: var(--text-primary);">
+            </div>
+
+            <div>
+                <label style="display: block; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">New
+                    Password</label>
+                <input type="password" id="new-password" name="new_password" required minlength="8" class="form-control"
+                    style="width: 100%; padding: 12px; border: 2px solid var(--border-light); border-radius: 8px; font-size: 1rem; box-sizing: border-box; background: var(--bg-primary); color: var(--text-primary);">
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 5px;">At least 8 characters</p>
+            </div>
+
+            <div>
+                <label
+                    style="display: block; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">Confirm
+                    New Password</label>
+                <input type="password" id="password-confirm" name="password_confirm" required class="form-control"
+                    style="width: 100%; padding: 12px; border: 2px solid var(--border-light); border-radius: 8px; font-size: 1rem; box-sizing: border-box; background: var(--bg-primary); color: var(--text-primary);">
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="padding: 12px; font-size: 1rem;">
+                🔐 Change Password
+            </button>
+        </form>
+    </div>
+
+
+    <div
+        style="background: var(--bg-secondary); padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); margin-bottom: 30px; border: 2px solid #dc3545;">
+        <h2 style="color: #dc3545; margin-bottom: 10px;">⚠️ Danger Zone</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 20px;">
+            Permanently delete your account and all associated data. This action cannot be undone.
+        </p>
+
+        <form id="delete-form" style="display: flex; flex-direction: column; gap: 15px;">
+            <div>
+                <label style="display: block; color: var(--text-secondary); font-weight: 600; margin-bottom: 8px;">
+                    Enter your password to confirm
+                </label>
+                <input type="password" id="delete-password" name="password" required class="form-control"
+                    placeholder="Enter your current password"
+                    style="width: 100%; padding: 12px; border: 2px solid var(--border-light); border-radius: 8px; font-size: 1rem; box-sizing: border-box; background: var(--bg-primary); color: var(--text-primary);">
+            </div>
+
+            <button type="submit" class="btn"
+                style="padding: 12px; font-size: 1rem; background: #dc3545; color: white; border: none; cursor: pointer;">
+                🗑️ Delete My Account Permanently
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+
+    fetch('/auth/api/profile')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const user = data.user;
+                document.getElementById('username-display').textContent = user.username;
+                document.getElementById('email-display').textContent = user.email;
+                document.getElementById('new-email').value = user.email;
+
+                const date = new Date(user.created_at);
+                document.getElementById('created-display').textContent = date.toLocaleDateString();
+            }
+        });
+
+
+    document.getElementById('email-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const newEmail = document.getElementById('new-email').value.trim();
+
+        try {
+            const response = await fetchWithCSRF('/auth/api/update-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: newEmail })
+            });
+
+            const data = await response.json();
+            showAlert(data.message || data.error, data.success ? 'success' : 'error');
+
+            if (data.success) {
+                setTimeout(() => location.reload(), 2000);
+            }
+        } catch (error) {
+            showAlert('Error: ' + error.message, 'error');
+        }
+    });
+
+
+    document.getElementById('password-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const oldPassword = document.getElementById('old-password').value;
+        const newPassword = document.getElementById('new-password').value;
+        const passwordConfirm = document.getElementById('password-confirm').value;
+
+        try {
+            const response = await fetchWithCSRF('/auth/api/update-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    old_password: oldPassword,
+                    new_password: newPassword,
+                    password_confirm: passwordConfirm
+                })
+            });
+
+            const data = await response.json();
+            showAlert(data.message || data.error, data.success ? 'success' : 'error');
+
+            if (data.success) {
+                document.getElementById('password-form').reset();
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            }
+        } catch (error) {
+            showAlert('Error: ' + error.message, 'error');
+        }
+    });
+
+
+    document.getElementById('delete-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const confirmed = confirm(
+            '⚠️ WARNING: This action cannot be undone!\n\n' +
+            'Are you sure you want to permanently delete your account?\n\n' +
+            'This will delete:\n' +
+            '• All your novels and chapters\n' +
+            '• All your webtoon jobs\n' +
+            '• All your settings\n' +
+            '• Your account completely'
+        );
+
+        if (!confirmed) return;
+
+        const password = document.getElementById('delete-password').value;
+
+        try {
+            const response = await fetchWithCSRF('/auth/api/delete-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showAlert('Account deleted successfully. Redirecting...', 'success');
+                setTimeout(() => {
+                    window.location.href = '/';
+                }, 2000);
+            } else {
+                showAlert(data.error || 'Failed to delete account', 'error');
+            }
+        } catch (error) {
+            showAlert('Error: ' + error.message, 'error');
+        }
+    });
+
+    function showAlert(message, type) {
+        const alertContainer = document.getElementById('alert-container');
+        const bgColor = type === 'success' ? 'var(--success-bg, #c6f6d5)' : 'var(--error-bg, #fed7d7)';
+        const textColor = type === 'success' ? 'var(--success-text, #22543d)' : 'var(--error-text, #742a2a)';
+        const borderColor = type === 'success' ? 'var(--success-border, #9ae6b4)' : 'var(--error-border, #fc8181)';
+
+        alertContainer.innerHTML = `
+            <div style="background: ${bgColor}; 
+                        color: ${textColor}; 
+                        padding: 15px; 
+                        border-radius: 8px; 
+                        border: 1px solid ${borderColor};
+                        margin-bottom: 20px;">
+                ${type === 'success' ? '✓' : '❌'} ${message}
+            </div>
+        `;
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        if (type === 'success') {
+            setTimeout(() => {
+                alertContainer.innerHTML = '';
+            }, 5000);
+        }
+    }
+</script>
+{% endblock %}

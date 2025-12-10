@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+
+{% block title %}System Statistics - Admin - LunaFrost{% endblock %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<div class="container">
+    <header style="margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+                <h1>📊 System Statistics</h1>
+                <p style="color: var(--text-secondary); margin-top: 10px;">
+                    Real-time system metrics and analytics
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="refresh-btn" class="btn btn-secondary" onclick="refreshAllStats()">
+                    🔄 Refresh
+                </button>
+                <a href="/admin" class="btn btn-secondary">← Back to Dashboard</a>
+            </div>
+        </div>
+    </header>
+
+    
+    <div class="stats-grid"
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-value" id="total-users">-</div>
+            <div class="stat-label">Total Users</div>
+            <div class="stat-trend" id="user-growth"></div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📚</div>
+            <div class="stat-value" id="total-novels">-</div>
+            <div class="stat-label">Novels</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">📖</div>
+            <div class="stat-value" id="total-chapters">-</div>
+            <div class="stat-label">Chapters</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-value" id="total-translations">-</div>
+            <div class="stat-label">Translations</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🪙</div>
+            <div class="stat-value" id="total-tokens">-</div>
+            <div class="stat-label">Tokens Used</div>
+        </div>
+    </div>
+
+    
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        <div class="chart-container">
+            <h3>Translation Activity (30 Days)</h3>
+            <canvas id="translationsChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h3>Token Usage Trend</h3>
+            <canvas id="tokensChart"></canvas>
+        </div>
+    </div>
+
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        
+        <div class="panel">
+            <h3>Token Usage Breakdown</h3>
+            <div style="height: 250px; position: relative;">
+                <canvas id="providerChart"></canvas>
+            </div>
+            <div id="cost-breakdown" style="margin-top: 15px; font-size: 0.9rem;">
+                
+            </div>
+        </div>
+
+        
+        <div class="panel">
+            <h3>User Activity</h3>
+            <div class="activity-list">
+                <div class="activity-item">
+                    <span>Active Users (7d)</span>
+                    <strong id="active-7d">-</strong>
+                </div>
+                <div class="activity-item">
+                    <span>Active Users (30d)</span>
+                    <strong id="active-30d">-</strong>
+                </div>
+                <div class="activity-item">
+                    <span>New Users (Week)</span>
+                    <strong id="new-users-week">-</strong>
+                </div>
+                <div class="activity-item">
+                    <span>Translations (Today)</span>
+                    <strong id="translations-today">-</strong>
+                </div>
+                <div class="activity-item">
+                    <span>Avg Tokens/Chapter</span>
+                    <strong id="avg-tokens">-</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+        <div class="panel">
+            <h3>🏆 Top Users (Tokens)</h3>
+            <table class="simple-table" id="top-users-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Tokens</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div class="panel">
+            <h3>📚 Largest Novels</h3>
+            <table class="simple-table" id="largest-novels-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Chapters</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div class="panel">
+            <h3>✍️ Top Authors</h3>
+            <table class="simple-table" id="top-authors-table">
+                <thead>
+                    <tr>
+                        <th>Author</th>
+                        <th>Translations</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+        
+        <div class="panel">
+            <h3>💾 Storage</h3>
+            <div class="storage-item">
+                <div class="storage-label">
+                    <span>Database Size</span>
+                    <span id="db-size">- MB</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="db-progress" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="storage-item">
+                <div class="storage-label">
+                    <span>Images (<span id="img-count">-</span>)</span>
+                    <span id="img-size">- MB</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="img-progress" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="storage-item">
+                <div class="storage-label">
+                    <span>Exports (EPUB/TXT)</span>
+                    <span id="export-count">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .stat-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-light);
+        border-radius: 8px;
+        padding: 20px;
+        text-align: center;
+        transition: transform 0.2s;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+    }
+
+    .stat-icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+    }
+
+    .stat-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: var(--text-primary);
+        margin-bottom: 5px;
+    }
+
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+    }
+
+    .stat-trend {
+        font-size: 0.8rem;
+        margin-top: 5px;
+    }
+
+    .trend-up {
+        color: #4CAF50;
+    }
+
+    .trend-down {
+        color: #f44336;
+    }
+
+    .panel {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-light);
+        border-radius: 8px;
+        padding: 20px;
+    }
+
+    .panel h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 1.1rem;
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 10px;
+    }
+
+    .chart-container {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-light);
+        border-radius: 8px;
+        padding: 20px;
+        height: 300px;
+    }
+
+    .simple-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .simple-table th {
+        text-align: left;
+        padding: 8px;
+        border-bottom: 1px solid var(--border-light);
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+    }
+
+    .simple-table td {
+        padding: 8px;
+        border-bottom: 1px solid var(--border-light);
+        font-size: 0.9rem;
+    }
+
+    .simple-table tr:last-child td {
+        border-bottom: none;
+    }
+
+    .activity-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border-light);
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .storage-item {
+        margin-bottom: 15px;
+    }
+
+    .storage-label {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        font-size: 0.9rem;
+    }
+
+    .progress-bar {
+        background: var(--bg-primary);
+        height: 8px;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        background: var(--accent-color);
+        height: 100%;
+        transition: width 0.5s;
+    }
+</style>
+
+<script>
+    
+    const formatNum = (num) => new Intl.NumberFormat().format(num);
+    const formatBytes = (bytes) => (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+
+    
+    let charts = {};
+
+    document.addEventListener('DOMContentLoaded', () => {
+        refreshAllStats();
+
+        
+        setInterval(refreshAllStats, 60000);
+    });
+
+    async function refreshAllStats() {
+        const btn = document.getElementById('refresh-btn');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Loading...';
+
+        try {
+            await Promise.all([
+                loadOverview(),
+                loadTokens(),
+                loadActivity(),
+                loadTopLists(),
+                loadStorage(),
+                loadCharts(),
+            ]);
+        } catch (e) {
+            console.error("Error refreshing stats:", e);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '🔄 Refresh';
+        }
+    }
+
+    async function loadOverview() {
+        const res = await fetch('/admin/api/stats/overview');
+        const { data } = await res.json();
+
+        document.getElementById('total-users').textContent = formatNum(data.total_users);
+        document.getElementById('total-novels').textContent = formatNum(data.total_novels);
+        document.getElementById('total-chapters').textContent = formatNum(data.total_chapters);
+        document.getElementById('total-translations').textContent = formatNum(data.total_translations);
+        document.getElementById('total-tokens').textContent = formatNum(data.total_tokens);
+
+        const growth = document.getElementById('user-growth');
+        growth.textContent = `+${data.user_growth_rate}% this month`;
+        growth.className = 'stat-trend ' + (data.user_growth_rate > 0 ? 'trend-up' : '');
+    }
+
+    async function loadTokens() {
+        const res = await fetch('/admin/api/stats/tokens');
+        const { data } = await res.json();
+
+        
+        const ctx = document.getElementById('providerChart').getContext('2d');
+        if (charts.provider) charts.provider.destroy();
+
+        charts.provider = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: data.by_provider.map(p => p.provider),
+                datasets: [{
+                    data: data.by_provider.map(p => p.tokens),
+                    backgroundColor: ['#4CAF50', '#2196F3', '#FFC107', '#9C27B0']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'right' } }
+            }
+        });
+
+        
+        const costDiv = document.getElementById('cost-breakdown');
+        costDiv.innerHTML = `
+        <div style="display:flex; justify-content:space-between; margin-top:10px; font-weight:bold;">
+            <span>Est. Cost (Total)</span>
+            <span>$${data.estimated_cost}</span>
+        </div>
+    `;
+    }
+
+    async function loadActivity() {
+        const res = await fetch('/admin/api/stats/activity');
+        const { data } = await res.json();
+
+        document.getElementById('active-7d').textContent = formatNum(data.active_users_7d);
+        document.getElementById('active-30d').textContent = formatNum(data.active_users_30d);
+        document.getElementById('new-users-week').textContent = formatNum(data.new_users_week);
+        document.getElementById('translations-today').textContent = formatNum(data.translations_today);
+        document.getElementById('avg-tokens').textContent = formatNum(data.avg_tokens_per_translation);
+    }
+
+    async function loadTopLists() {
+        const res = await fetch('/admin/api/stats/top-lists');
+        const { data } = await res.json();
+
+        
+        const usersBody = document.querySelector('#top-users-table tbody');
+        usersBody.innerHTML = data.top_users.map(u => `
+        <tr><td>${u.username}</td><td>${formatNum(u.tokens)}</td></tr>
+    `).join('');
+
+        
+        const novelsBody = document.querySelector('#largest-novels-table tbody');
+        novelsBody.innerHTML = data.largest_novels.map(n => `
+        <tr><td>${n.title.substring(0, 20)}...</td><td>${formatNum(n.chapters)}</td></tr>
+    `).join('');
+
+        
+        const authorsBody = document.querySelector('#top-authors-table tbody');
+        authorsBody.innerHTML = data.top_authors.map(a => `
+        <tr><td>${a.author.substring(0, 20)}</td><td>${formatNum(a.translations)}</td></tr>
+    `).join('');
+    }
+
+    async function loadStorage() {
+        const res = await fetch('/admin/api/stats/storage');
+        const { data } = await res.json();
+
+        document.getElementById('db-size').textContent = data.database_size_mb + ' MB';
+        document.getElementById('img-count').textContent = formatNum(data.images_count);
+        document.getElementById('img-size').textContent = data.images_size_mb + ' MB';
+        document.getElementById('export-count').textContent = formatNum(data.exports_total);
+
+        
+        document.getElementById('db-progress').style.width = Math.min((data.database_size_mb / 500) * 100, 100) + '%';
+        document.getElementById('img-progress').style.width = Math.min((data.images_size_mb / 1000) * 100, 100) + '%';
+    }
+
+    async function loadCharts() {
+        const res = await fetch('/admin/api/stats/charts');
+        const { data } = await res.json();
+
+        
+        const tCtx = document.getElementById('translationsChart').getContext('2d');
+        if (charts.translations) charts.translations.destroy();
+
+        charts.translations = new Chart(tCtx, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'Translations',
+                    data: data.translations,
+                    borderColor: '#4CAF50',
+                    tension: 0.3,
+                    fill: true,
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+
+        
+        const kCtx = document.getElementById('tokensChart').getContext('2d');
+        if (charts.tokens) charts.tokens.destroy();
+
+        charts.tokens = new Chart(kCtx, {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'Tokens Used',
+                    data: data.tokens,
+                    backgroundColor: '#2196F3'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+
+</script>
+{% endblock %}

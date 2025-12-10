@@ -1,0 +1,934 @@
+{% extends "base.html" %}
+
+{% block title %}{{ webtoon.title }} - Chapter {{ webtoon.current_chapter }} - LunaFrost Reader{% endblock %}
+
+{% block content %}
+<div class="reader-container">
+    
+    <div class="scroll-container" id="scroll-container">
+        {% if webtoon.images %}
+        {% for image in webtoon.images %}
+        <div class="image-panel" data-page="{{ image.page_order }}" data-image-id="{{ image.id }}">
+            <div style="position: relative; display: inline-block; max-width: 100%;">
+                <img src="{{ image.url }}" alt="Page {{ image.page_order }}" class="panel-image" loading="lazy"
+                    data-image-id="{{ image.id }}">
+                
+                <div class="text-regions-container" data-image-id="{{ image.id }}"
+                    style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden;">
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <div class="no-images">
+            <p>No images in this chapter</p>
+            <a href="/webtoon/{{ webtoon.job_id }}/upload" class="btn btn-primary">Upload Images</a>
+        </div>
+        {% endif %}
+
+        
+        <div class="chapter-end">
+            <h3>End of Chapter {{ webtoon.current_chapter }}</h3>
+            <div class="end-buttons">
+                <a href="/webtoon/{{ webtoon.job_id }}" class="btn btn-secondary">
+                    Back to Overview
+                </a>
+                {% if webtoon.has_next %}
+                <a href="/webtoon/{{ webtoon.job_id }}/read/{{ webtoon.next_chapter }}" class="btn btn-primary btn-lg">
+                    Next Chapter →
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="reader-nav" id="reader-nav">
+        <a href="/webtoon/{{ webtoon.job_id }}" class="nav-btn back-btn">
+            ← Back
+        </a>
+        <div class="title-section">
+            <h1 class="reader-title">{{ webtoon.title }}: Chapter {{ webtoon.current_chapter }}</h1>
+        </div>
+    </div>
+
+    
+    <button class="floating-settings-btn" id="settings-btn" title="Settings">⚙️</button>
+
+    
+    <div class="chapter-nav" id="chapter-nav">
+        <button class="chapter-btn" id="prev-chapter" {% if not webtoon.has_prev %}disabled{% endif %}>
+            ← Prev Chapter
+        </button>
+        <select id="chapter-select" class="chapter-dropdown">
+            {% for num in webtoon.chapter_numbers %}
+            <option value="{{ num }}" {% if num==webtoon.current_chapter %}selected{% endif %}>
+                Chapter {{ num }}
+            </option>
+            {% endfor %}
+        </select>
+        <button class="chapter-btn" id="next-chapter" {% if not webtoon.has_next %}disabled{% endif %}>
+            Next Chapter →
+        </button>
+    </div>
+
+    
+    <div class="progress-bar" id="progress-bar">
+        <div class="progress-fill" id="progress-fill"></div>
+    </div>
+
+    
+    <div class="settings-panel" id="settings-panel" style="display: none;">
+        <div class="settings-content">
+            <h3>Reader Settings</h3>
+
+            <div class="setting-item">
+                <label>Image Width</label>
+                <select id="image-width" class="form-control">
+                    <option value="100">Full Width</option>
+                    <option value="80" selected>80%</option>
+                    <option value="60">60%</option>
+                    <option value="50">50%</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <label>Background</label>
+                <select id="bg-color" class="form-control">
+                    <option value="#1a1a1a" selected>Dark</option>
+                    <option value="#ffffff">Light</option>
+                    <option value="#000000">Black</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="hide-nav" checked>
+                    Auto-hide navigation
+                </label>
+            </div>
+
+            <button class="btn btn-secondary" id="close-settings">Close</button>
+        </div>
+    </div>
+
+    
+    <button class="scroll-top-btn" id="scroll-top" title="Scroll to top" style="display: none;">↑</button>
+</div>
+
+<style>
+    .reader-container {
+        background: #1a1a1a;
+        min-height: 100vh;
+        padding-top: 0;
+        position: relative;
+    }
+
+    .reader-nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        background: rgba(0, 0, 0, 0.9);
+        backdrop-filter: blur(10px);
+        z-index: 100;
+        transition: transform 0.3s;
+        height: 56px;
+        box-sizing: border-box;
+    }
+
+    .reader-nav .back-btn {
+        position: absolute;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .translate-chapter-btn {
+        position: absolute;
+        right: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        white-space: nowrap;
+    }
+
+    .translate-chapter-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    @media (max-width: 768px) {
+        .translate-chapter-btn {
+            font-size: 0.85rem;
+            padding: 6px 12px;
+        }
+    }
+
+    .reader-nav.hidden {
+        transform: translateY(-100%);
+    }
+
+    .nav-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: white;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        text-decoration: none;
+        font-size: 1rem;
+        transition: background 0.2s;
+    }
+
+    .nav-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+    }
+
+    .title-section {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .reader-title {
+        font-size: 1.1rem;
+        color: white;
+        margin: 0;
+    }
+
+    .chapter-indicator {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9rem;
+    }
+
+    .floating-settings-btn {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        z-index: 99;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .floating-settings-btn:hover {
+        background: rgba(99, 102, 241, 0.6);
+        transform: scale(1.1);
+    }
+
+    .chapter-nav {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 16px;
+        padding: 12px 20px;
+        background: rgba(0, 0, 0, 0.9);
+        backdrop-filter: blur(10px);
+        z-index: 100;
+        transition: transform 0.3s;
+    }
+
+    .chapter-nav.hidden {
+        transform: translateY(100%);
+    }
+
+    .chapter-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: none;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .chapter-btn:hover:not(:disabled) {
+        background: rgba(99, 102, 241, 0.6);
+    }
+
+    .chapter-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    .chapter-dropdown {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        padding: 10px 16px;
+        border-radius: 6px;
+        font-size: 1rem;
+    }
+
+    .chapter-dropdown option {
+        background: #2a2a2a;
+        color: white;
+    }
+
+    .scroll-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0 20px 80px 20px;
+        padding-top: 0;
+        gap: 0;
+        position: relative;
+        z-index: 1;
+    }
+
+    .image-panel {
+        width: 80%;
+        max-width: 1000px;
+        display: flex;
+        justify-content: center;
+    }
+
+    .panel-image {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .no-images {
+        text-align: center;
+        color: white;
+        padding: 40px;
+    }
+
+    .chapter-end {
+        text-align: center;
+        padding: 60px 20px;
+        color: white;
+        width: 100%;
+        max-width: 600px;
+    }
+
+    .chapter-end h3 {
+        margin-bottom: 24px;
+        color: rgba(255, 255, 255, 0.8);
+    }
+
+    .end-buttons {
+        display: flex;
+        gap: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .progress-bar {
+        position: fixed;
+        top: 56px;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: rgba(255, 255, 255, 0.1);
+        z-index: 99;
+        transition: top 0.3s ease;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(to right, #6366f1, #8b5cf6);
+        width: 0%;
+        transition: width 0.1s;
+    }
+
+    .settings-panel {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 200;
+    }
+
+    .settings-content {
+        background: #2a2a2a;
+        padding: 30px;
+        border-radius: 12px;
+        min-width: 300px;
+    }
+
+    .settings-content h3 {
+        color: white;
+        margin-bottom: 20px;
+    }
+
+    .setting-item {
+        margin-bottom: 16px;
+    }
+
+    .setting-item label {
+        display: block;
+        color: rgba(255, 255, 255, 0.8);
+        margin-bottom: 8px;
+    }
+
+    .setting-item .form-control {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        padding: 10px;
+        border-radius: 6px;
+    }
+
+    .scroll-top-btn {
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: rgba(99, 102, 241, 0.8);
+        border: none;
+        color: white;
+        font-size: 1.5rem;
+        cursor: pointer;
+        z-index: 99;
+        transition: all 0.2s;
+    }
+
+    .scroll-top-btn:hover {
+        background: rgba(99, 102, 241, 1);
+        transform: scale(1.1);
+    }
+
+    @media (max-width: 768px) {
+        .image-panel {
+            width: 100%;
+        }
+
+        .chapter-nav {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .chapter-btn {
+            font-size: 0.9rem;
+            padding: 8px 12px;
+        }
+    }
+</style>
+
+<script>
+    const jobId = '{{ webtoon.job_id }}';
+    const currentChapter = {{ webtoon.current_chapter }};
+    const chapterNumbers = {{ webtoon.chapter_numbers | tojson }};
+    const sourceLanguage = '{{ webtoon.source_language or "korean" }}';
+
+    const readerNav = document.getElementById('reader-nav');
+    const chapterNav = document.getElementById('chapter-nav');
+    const progressBar = document.getElementById('progress-bar');
+    const progressFill = document.getElementById('progress-fill');
+    const scrollTopBtn = document.getElementById('scroll-top');
+    const scrollContainer = document.getElementById('scroll-container');
+
+    let lastScrollTop = 0;
+    let hideTimeout;
+    let autoHideNav = true;
+
+    window.addEventListener('scroll', () => {
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const progress = (scrollTop / docHeight) * 100;
+
+        progressFill.style.width = `${progress}%`;
+
+        if (scrollTop > 500) {
+            scrollTopBtn.style.display = 'block';
+        } else {
+            scrollTopBtn.style.display = 'none';
+        }
+
+        if (autoHideNav) {
+            if (scrollTop > lastScrollTop && scrollTop > 100) {
+
+                readerNav.classList.add('hidden');
+                chapterNav.classList.add('hidden');
+                progressBar.style.top = '0px';
+            } else {
+
+                readerNav.classList.remove('hidden');
+                chapterNav.classList.remove('hidden');
+                progressBar.style.top = '56px';
+            }
+        } else {
+
+            progressBar.style.top = '56px';
+        }
+
+        lastScrollTop = scrollTop;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (e.clientY < 80) {
+            readerNav.classList.remove('hidden');
+            progressBar.style.top = '56px';
+        }
+        if (e.clientY > window.innerHeight - 80) {
+            chapterNav.classList.remove('hidden');
+        }
+    });
+
+    scrollTopBtn.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    document.getElementById('prev-chapter').addEventListener('click', () => {
+        const idx = chapterNumbers.indexOf(currentChapter);
+        if (idx > 0) {
+            window.location.href = `/webtoon/${jobId}/read/${chapterNumbers[idx - 1]}`;
+        }
+    });
+
+    document.getElementById('next-chapter').addEventListener('click', () => {
+        const idx = chapterNumbers.indexOf(currentChapter);
+        if (idx < chapterNumbers.length - 1) {
+            window.location.href = `/webtoon/${jobId}/read/${chapterNumbers[idx + 1]}`;
+        }
+    });
+
+    document.getElementById('chapter-select').addEventListener('change', (e) => {
+        window.location.href = `/webtoon/${jobId}/read/${e.target.value}`;
+    });
+
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsPanel = document.getElementById('settings-panel');
+    const closeSettings = document.getElementById('close-settings');
+
+    settingsBtn.addEventListener('click', () => {
+        settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'flex' : 'none';
+    });
+
+    closeSettings.addEventListener('click', () => {
+        settingsPanel.style.display = 'none';
+    });
+
+    document.getElementById('image-width').addEventListener('change', (e) => {
+        const width = e.target.value + '%';
+        document.querySelectorAll('.image-panel').forEach(panel => {
+            panel.style.width = width;
+        });
+        localStorage.setItem('webtoon-image-width', e.target.value);
+    });
+
+    document.getElementById('bg-color').addEventListener('change', (e) => {
+        document.querySelector('.reader-container').style.background = e.target.value;
+        localStorage.setItem('webtoon-bg-color', e.target.value);
+    });
+
+    document.getElementById('hide-nav').addEventListener('change', (e) => {
+        autoHideNav = e.target.checked;
+        if (!autoHideNav) {
+            readerNav.classList.remove('hidden');
+            chapterNav.classList.remove('hidden');
+            progressBar.style.top = '56px';
+        }
+        localStorage.setItem('webtoon-auto-hide', e.target.checked);
+    });
+
+    const savedWidth = localStorage.getItem('webtoon-image-width');
+    if (savedWidth) {
+        document.getElementById('image-width').value = savedWidth;
+        document.querySelectorAll('.image-panel').forEach(panel => {
+            panel.style.width = savedWidth + '%';
+        });
+    }
+
+    const savedBg = localStorage.getItem('webtoon-bg-color');
+    if (savedBg) {
+        document.getElementById('bg-color').value = savedBg;
+        document.querySelector('.reader-container').style.background = savedBg;
+    }
+
+    const savedAutoHide = localStorage.getItem('webtoon-auto-hide');
+    if (savedAutoHide !== null) {
+        autoHideNav = savedAutoHide === 'true';
+        document.getElementById('hide-nav').checked = autoHideNav;
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+        switch (e.key) {
+            case 'ArrowLeft':
+                document.getElementById('prev-chapter').click();
+                e.preventDefault();
+                break;
+            case 'ArrowRight':
+                document.getElementById('next-chapter').click();
+                e.preventDefault();
+                break;
+            case 'Home':
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                e.preventDefault();
+                break;
+            case 'End':
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                e.preventDefault();
+                break;
+            case 'Escape':
+                settingsPanel.style.display = 'none';
+                break;
+        }
+    });
+
+    async function translateChapter() {
+        const translateBtn = document.getElementById('translate-chapter-btn');
+        const originalText = translateBtn.textContent;
+        translateBtn.disabled = true;
+        translateBtn.textContent = '⏳ Translating...';
+
+        try {
+
+            const imagePanels = document.querySelectorAll('.image-panel[data-image-id]');
+            const imageIds = Array.from(imagePanels).map(panel => parseInt(panel.getAttribute('data-image-id')));
+
+            if (imageIds.length === 0) {
+                window.showAlertModal('No Images', 'No images found in this chapter', 'error');
+                return;
+            }
+
+            let translatedCount = 0;
+            let failedCount = 0;
+
+            for (const imageId of imageIds) {
+                try {
+
+                    const response = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/data`, {
+                        method: 'GET'
+                    });
+
+                    if (!response.ok) {
+                        console.error(`Failed to get data for image ${imageId}`);
+                        failedCount++;
+                        continue;
+                    }
+
+                    const data = await response.json();
+                    const ocrRegions = data.ocr_regions || [];
+
+                    if (ocrRegions.length === 0) {
+                        console.log(`No OCR regions found for image ${imageId}`);
+                        continue;
+                    }
+
+                    const translations = [];
+                    for (const region of ocrRegions) {
+
+                        const regionText = region.text || region.originalText || region.original_text || '';
+                        if (!regionText || !regionText.trim()) {
+                            console.log(`Skipping empty region in image ${imageId}`);
+                            translations.push(null);
+                            continue;
+                        }
+
+                        try {
+                            const translateResponse = await window.fetchWithCSRF('/api/translate', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    text: regionText,
+                                    source_language: sourceLanguage
+                                })
+                            });
+
+                            if (translateResponse.ok) {
+                                const translateData = await translateResponse.json();
+                                const translatedText = translateData.translated_text || translateData.translatedText || '';
+                                translations.push(translatedText);
+                            } else {
+                                console.error(`Translation failed for region in image ${imageId}:`, translateResponse.statusText);
+                                translations.push(null);
+                            }
+                        } catch (err) {
+                            console.error(`Translation failed for region in image ${imageId}:`, err);
+                            translations.push(null);
+                        }
+                    }
+
+                    const validTranslations = translations.filter(t => t !== null);
+                    if (validTranslations.length > 0) {
+
+                        const translatedRegions = ocrRegions.map((ocr, idx) => {
+                            const translation = translations[idx];
+
+                            const translatedText = (typeof translation === 'string') ? translation : (translation?.text || '');
+                            return {
+                                bbox: ocr.bbox,
+                                text: translatedText,
+                                confidence: ocr.confidence || 1.0
+                            };
+                        });
+
+                        const saveResponse = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/translations`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ translated_regions: translatedRegions })
+                        });
+
+                        if (saveResponse.ok) {
+                            translatedCount++;
+                        } else {
+                            failedCount++;
+                        }
+                    }
+                } catch (err) {
+                    console.error(`Error processing image ${imageId}:`, err);
+                    failedCount++;
+                }
+            }
+
+            if (translatedCount > 0) {
+                window.showAlertModal('Translation Complete', `Successfully translated ${translatedCount} image${translatedCount !== 1 ? 's' : ''} in this chapter!${failedCount > 0 ? ` ${failedCount} image(s) failed.` : ''}`, 'success');
+
+                await loadImageTextRegions();
+            } else {
+                window.showAlertModal('No Translations', `No translations were completed.${failedCount > 0 ? ` ${failedCount} image(s) failed.` : ' No OCR text found in images.'}`, 'error');
+            }
+        } catch (error) {
+            console.error('Error translating chapter:', error);
+            window.showAlertModal('Error', 'Error translating chapter: ' + error.message, 'error');
+        } finally {
+            translateBtn.disabled = false;
+            translateBtn.textContent = originalText;
+        }
+    }
+
+    const translateChapterBtn = document.getElementById('translate-chapter-btn');
+    if (translateChapterBtn) {
+        translateChapterBtn.addEventListener('click', translateChapter);
+    }
+
+    async function loadImageTextRegions() {
+        const imagePanels = document.querySelectorAll('.image-panel[data-image-id]');
+
+        for (const panel of imagePanels) {
+            const imageId = parseInt(panel.getAttribute('data-image-id'));
+            const img = panel.querySelector('.panel-image');
+            const container = panel.querySelector('.text-regions-container');
+
+            if (!img || !container) continue;
+
+            try {
+
+                const response = await window.fetchWithCSRF(`/api/webtoon/job/${jobId}/image/${imageId}/data`, {
+                    method: 'GET'
+                });
+
+                if (!response.ok) {
+                    console.error(`Failed to load data for image ${imageId}`);
+                    continue;
+                }
+
+                const data = await response.json();
+                const ocrRegions = data.ocr_regions || [];
+                const translatedRegions = data.translated_regions || [];
+
+                if (ocrRegions.length === 0) {
+                    console.log(`No OCR regions found for image ${imageId}`);
+                    continue;
+                }
+
+                await new Promise((resolve) => {
+                    if (img.complete) {
+                        resolve();
+                    } else {
+                        img.onload = resolve;
+                        img.onerror = resolve;
+                    }
+                });
+
+                createClickableRegionsForImage(img, container, ocrRegions, translatedRegions);
+            } catch (error) {
+                console.error(`Error loading regions for image ${imageId}:`, error);
+            }
+        }
+    }
+
+    function createClickableRegionsForImage(img, container, ocrRegions, translatedRegions) {
+        container.innerHTML = '';
+
+        const regions = ocrRegions.map((ocr, idx) => {
+
+            const ocrText = ocr.text || ocr.originalText || ocr.original_text || '';
+            const translatedText = (translatedRegions[idx] && translatedRegions[idx].text)
+                ? translatedRegions[idx].text
+                : (translatedRegions[idx] && translatedRegions[idx].translatedText)
+                    ? translatedRegions[idx].translatedText
+                    : '';
+
+            return {
+                bbox: ocr.bbox,
+                originalText: ocrText,
+                translatedText: translatedText
+            };
+        }).filter(region => region.bbox && region.bbox.length >= 4);
+
+        const imgRect = img.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+
+        const scaleX = imgRect.width / img.naturalWidth;
+        const scaleY = imgRect.height / img.naturalHeight;
+
+        const offsetX = imgRect.left - containerRect.left;
+        const offsetY = imgRect.top - containerRect.top;
+
+        regions.forEach((region) => {
+            const bbox = region.bbox;
+            if (!bbox || bbox.length < 4) return;
+
+            const [x, y, width, height] = bbox;
+
+            const displayX = (x * scaleX) + offsetX;
+            const displayY = (y * scaleY) + offsetY;
+            const displayWidth = width * scaleX;
+            const displayHeight = height * scaleY;
+
+            const regionDiv = document.createElement('div');
+            regionDiv.className = 'text-region-clickable';
+            regionDiv.style.cssText = `
+                position: absolute;
+                left: ${displayX}px;
+                top: ${displayY}px;
+                width: ${displayWidth}px;
+                height: ${displayHeight}px;
+                cursor: pointer;
+                pointer-events: auto;
+                border: 2px solid transparent;
+                border-radius: 4px;
+                transition: all 0.2s ease;
+                z-index: 25;
+            `;
+
+            regionDiv.addEventListener('mouseenter', function () {
+                this.style.borderColor = 'rgba(99, 102, 241, 0.8)';
+                this.style.backgroundColor = 'rgba(99, 102, 241, 0.2)';
+            });
+
+            regionDiv.addEventListener('mouseleave', function () {
+                this.style.borderColor = 'transparent';
+                this.style.backgroundColor = 'transparent';
+            });
+
+            regionDiv.addEventListener('click', function (e) {
+                e.stopPropagation();
+                showTranslationPopup(e.clientX, e.clientY, region.originalText || '', region.translatedText || '');
+            });
+
+            container.appendChild(regionDiv);
+        });
+    }
+
+    function showTranslationPopup(x, y, originalText, translatedText) {
+
+        const existing = document.getElementById('translation-popup');
+        if (existing) {
+            existing.remove();
+        }
+
+        const popup = document.createElement('div');
+        popup.id = 'translation-popup';
+
+        let popupX = x + 10;
+        let popupY = y + 10;
+
+        if (popupX + 300 > window.innerWidth) {
+            popupX = x - 310;
+        }
+        if (popupY + 200 > window.innerHeight) {
+            popupY = y - 210;
+        }
+
+        popup.style.cssText = `
+            position: fixed;
+            left: ${popupX}px;
+            top: ${popupY}px;
+            background: white;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+            padding: 15px 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10001;
+            max-width: 600px;
+            width: max-content;
+            max-height: 80vh;
+            overflow-y: auto;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        `;
+
+        const displayOriginal = originalText || '(No OCR text detected)';
+        const displayTranslated = translatedText || '(No translation available)';
+        const translationStyle = translatedText
+            ? 'color: #1a202c; font-weight: 500;'
+            : 'color: #a0aec0; font-style: italic;';
+
+        const isJapanese = sourceLanguage === 'japanese';
+        const displayOriginalHorizontal = isJapanese ? displayOriginal : displayOriginal.replace(/\n+/g, ' ').trim();
+        const displayTranslatedHorizontal = displayTranslated.replace(/\n+/g, ' ').trim();
+
+        const originalTextStyle = isJapanese
+            ? 'white-space: pre-wrap;'
+            : 'white-space: normal; word-wrap: break-word;';
+
+        popup.innerHTML = `
+            <button onclick="this.parentElement.remove()" style="position: absolute; top: 5px; right: 5px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666;">×</button>
+            <div style="padding-right: 30px;">
+                <div style="color: #718096; font-size: 0.85rem; margin-bottom: 8px;">Original:</div>
+                <div style="margin-bottom: 15px; ${originalTextStyle}">${displayOriginalHorizontal}</div>
+                <div style="color: #718096; font-size: 0.85rem; margin-bottom: 8px;">Translation:</div>
+                <div style="${translationStyle} white-space: normal; word-wrap: break-word;">${displayTranslatedHorizontal}</div>
+            </div>
+        `;
+
+        document.body.appendChild(popup);
+
+        setTimeout(() => {
+            document.addEventListener('click', function closePopup(e) {
+                if (!popup.contains(e.target)) {
+                    popup.remove();
+                    document.removeEventListener('click', closePopup);
+                }
+            });
+        }, 100);
+    }
+
+    window.addEventListener('load', () => {
+        setTimeout(loadImageTextRegions, 500);
+    });
+
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(loadImageTextRegions, 300);
+    });
+</script>
+{% endblock %}

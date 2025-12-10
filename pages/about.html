@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}About - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 900px; margin: 0 auto; padding: var(--space-2xl) var(--space-lg);">
+    <header
+        style="background: var(--bg-secondary); padding: var(--space-xl); border-radius: var(--radius-lg); border: 1px solid var(--border-light); margin-bottom: var(--space-xl); text-align: center;">
+        <h1 style="margin-bottom: var(--space-sm);">About LunaFrost Translator</h1>
+        <p class="subtitle">Bringing Korean web novels to English readers with AI-powered translation</p>
+    </header>
+
+    <div class="settings-card">
+        <h2>About</h2>
+        <p style="color: var(--text-secondary); line-height: 1.8; margin-top: var(--space-md);">
+            LunaFrost Translator is a free service that specializes in translating Korean Novelpia novels using AI of
+            your choice.
+            Whether you prefer Claude, GPT, Gemini, or other AI models, you have the flexibility to select the one that
+            works best for you.
+        </p>
+        <p style="color: var(--text-secondary); line-height: 1.8; margin-top: var(--space-md);">
+            This service is provided completely free of charge. However, if you'd like to support the project and help
+            cover server costs,
+            you can donate via PayPal using the link at the bottom of this page.
+        </p>
+        <p style="color: var(--text-secondary); line-height: 1.8; margin-top: var(--space-md);">
+            If you have any feature requests or run into any issues, please let me know via the
+            <a href="/contact" style="color: var(--accent-primary); text-decoration: none;">contact form</a> or by
+            opening an issue on
+            <a href="https://github.com/WinterMoe/LunaFrost" target="_blank"
+                style="color: var(--accent-primary); text-decoration: none;">GitHub</a>.
+        </p>
+    </div>
+
+    <div class="settings-card">
+        <h2>Open Source</h2>
+        <p style="color: var(--text-secondary); line-height: 1.8; margin-top: var(--space-md);">
+            LunaFrost Translator is an open-source project. We believe in transparency and community contribution.
+            If you're interested in contributing or want to run your own instance, check out our
+            <a href="https://github.com/WinterMoe/LunaFrost" target="_blank"
+                style="color: var(--accent-primary); text-decoration: none;">GitHub repository</a>.
+        </p>
+    </div>
+
+    <div class="settings-card">
+        <h2>Legal & Ethical Use</h2>
+        <p style="color: var(--text-secondary); line-height: 1.8; margin-top: var(--space-md);">
+            LunaFrost is designed for personal use and language learning. We respect the intellectual property rights of
+            original authors
+            and publishers. Users are responsible for ensuring their use of this tool complies with applicable copyright
+            laws and the
+            terms of service of source websites. We encourage supporting official translations and original authors
+            whenever possible.
+        </p>
+    </div>
+
+    <div class="settings-card">
+        <h2>Privacy & Cookies</h2>
+        <p style="color: var(--text-secondary); line-height: 1.8; margin-top: var(--space-md);">
+            LunaFrost respects your privacy. We use essential session cookies to keep you logged in and store your
+            reading preferences locally in your browser.
+            We do not use tracking cookies, analytics, or share your data with third parties. Your novels and
+            translations are stored privately and securely.
+        </p>
+    </div>
+
+    <div
+        style="text-align: center; margin-top: var(--space-2xl); padding: var(--space-xl); background: var(--accent-light); border-radius: var(--radius-lg);">
+        <h2 style="color: var(--accent-primary); margin-bottom: var(--space-md);">Support & Community</h2>
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-lg);">
+            Have questions, suggestions, or want to contribute?
+        </p>
+        <div
+            style="display: flex; gap: var(--space-md); justify-content: center; flex-wrap: wrap; margin-bottom: var(--space-lg);">
+            <a href="/contact" class="btn btn-primary">Contact Us</a>
+            <a href="https://github.com/WinterMoe/LunaFrost" target="_blank" class="btn btn-secondary">View on
+                GitHub</a>
+        </div>
+        <div
+            style="border-top: 1px solid var(--border-light); padding-top: var(--space-lg); margin-top: var(--space-lg);">
+            <p style="color: var(--text-secondary); margin-bottom: var(--space-md);">
+                If you'd like to help cover server costs, consider donating:
+            </p>
+            <a href="https://www.paypal.com/donate/?hosted_button_id=UB3X7PARL3NTL" target="_blank"
+                class="btn btn-primary">
+                💙 Donate via PayPal
+            </a>
+        </div>
+    </div>
+
+    <div style="text-align: center; margin-top: var(--space-xl);">
+        <a href="/" class="btn btn-secondary">← Back to Home</a>
+    </div>
+</div>
+{% endblock %}

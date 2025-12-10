@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}Other Options - Admin - LunaFrost{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header style="margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+                <h1>⚙️ Other Options</h1>
+                <p style="color: var(--text-secondary); margin-top: 10px;">
+                    System-wide settings and configurations
+                </p>
+            </div>
+            <div>
+                <a href="/admin" class="btn btn-secondary">← Back to Dashboard</a>
+            </div>
+        </div>
+    </header>
+
+    
+    <div class="panel" style="margin-bottom: 30px;">
+        <h3>📊 Global Settings</h3>
+
+        <div class="setting-item">
+            <div class="setting-info">
+                <label for="max-novels-input">Maximum Novels Per User</label>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 5px;">
+                    The default limit for regular users. Admins always have unlimited access.
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="number" id="max-novels-input" class="form-input" min="1" value="100"
+                    style="width: 120px;" />
+                <button class="btn btn-primary" onclick="saveMaxNovels()">
+                    💾 Save
+                </button>
+            </div>
+        </div>
+
+        <div class="setting-item">
+            <div class="setting-info">
+                <label for="max-webtoons-input">Maximum Webtoons/Manga Per User</label>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 5px;">
+                    Default limit for regular users. Admins and users with limit 0 have no cap.
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <input type="number" id="max-webtoons-input" class="form-input" min="1" value="5"
+                    style="width: 120px;" />
+                <button class="btn btn-primary" onclick="saveMaxWebtoons()">
+                    💾 Save
+                </button>
+            </div>
+        </div>
+    </div>
+
+    
+    <div class="panel">
+        <h3>🔮 More Options</h3>
+        <p style="color: var(--text-secondary);">Additional system settings will appear here as they are implemented.
+        </p>
+    </div>
+</div>
+
+<style>
+    .panel {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-light);
+        border-radius: 8px;
+        padding: 20px;
+    }
+
+    .panel h3 {
+        margin-top: 0;
+        margin-bottom: 15px;
+        font-size: 1.1rem;
+        border-bottom: 1px solid var(--border-light);
+        padding-bottom: 10px;
+    }
+
+    .setting-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 15px 0;
+    }
+
+    .setting-info label {
+        font-weight: 600;
+        font-size: 1rem;
+        display: block;
+    }
+
+    .form-input {
+        padding: 8px 12px;
+        border: 1px solid var(--border-light);
+        border-radius: 4px;
+        background: var(--bg-primary);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        loadSettings();
+    });
+
+    async function loadSettings() {
+        try {
+            const res = await fetch('/admin/api/options/settings');
+            const { data } = await res.json();
+
+            
+            const maxNovelsSetting = data.find(s => s.key === 'max_novels_per_user');
+            if (maxNovelsSetting) {
+                document.getElementById('max-novels-input').value = maxNovelsSetting.value;
+            }
+
+            const maxWebtoonsSetting = data.find(s => s.key === 'max_webtoons_per_user');
+            if (maxWebtoonsSetting) {
+                document.getElementById('max-webtoons-input').value = maxWebtoonsSetting.value;
+            }
+        } catch (e) {
+            console.error("Error loading settings:", e);
+        }
+    }
+
+    async function saveMaxNovels() {
+        const value = document.getElementById('max-novels-input').value;
+
+        if (!value || value < 1) {
+            window.showAlertModal('Error', 'Please enter a valid number (1 or greater)', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/admin/api/options/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: 'max_novels_per_user',
+                    value: value
+                })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                window.showAlertModal('Success', 'Maximum novels limit updated successfully', 'success');
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            window.showAlertModal('Error', `Failed to update setting: ${e.message}`, 'error');
+        }
+    }
+
+    async function saveMaxWebtoons() {
+        const value = document.getElementById('max-webtoons-input').value;
+
+        if (!value || value < 1) {
+            window.showAlertModal('Error', 'Please enter a valid number (1 or greater)', 'error');
+            return;
+        }
+
+        try {
+            const res = await fetch('/admin/api/options/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    key: 'max_webtoons_per_user',
+                    value: value
+                })
+            });
+
+            const data = await res.json();
+
+            if (data.success) {
+                window.showAlertModal('Success', 'Maximum webtoons limit updated successfully', 'success');
+            } else {
+                throw new Error(data.error);
+            }
+        } catch (e) {
+            window.showAlertModal('Error', `Failed to update setting: ${e.message}`, 'error');
+        }
+    }
+</script>
+{% endblock %}

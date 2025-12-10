@@ -1,0 +1,351 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - Admin - LunaFrost{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header style="margin-bottom: 30px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+                <h1>👥 User Management</h1>
+                <p style="color: var(--text-secondary); margin-top: 10px;">
+                    Manage user accounts and permissions
+                </p>
+            </div>
+            <a href="/admin" class="btn btn-secondary">← Back to Dashboard</a>
+        </div>
+
+        <div style="max-width: 500px;">
+            <input type="text" id="user-search" class="form-control" placeholder="🔍 Search by username or email..."
+                style="padding: 12px; font-size: 1rem;">
+        </div>
+    </header>
+
+    <div id="loading-state" style="text-align: center; padding: 40px;">
+        <p style="color: var(--text-secondary); font-size: 1rem;">⏳ Loading users...</p>
+    </div>
+
+    <div id="user-stats"
+        style="display: none; margin-bottom: 20px; padding: 15px; background: var(--bg-secondary); border-radius: 8px;">
+        <span style="color: var(--text-secondary);">
+            Showing <strong id="user-count">0</strong> users
+        </span>
+    </div>
+
+    <div id="users-table-container" style="display: none;">
+        <div style="overflow-x: auto;">
+            <table
+                style="width: 100%; border-collapse: collapse; background: var(--bg-secondary); border-radius: 8px; overflow: hidden;">
+                <thead>
+                    <tr style="background: var(--bg-primary); border-bottom: 2px solid var(--border-light);">
+                        <th style="padding: 16px; text-align: left; font-weight: 600;">Username</th>
+                        <th style="padding: 16px; text-align: left; font-weight: 600;">Email</th>
+                        <th style="padding: 16px; text-align: center; font-weight: 600;">Admin</th>
+                        <th style="padding: 16px; text-align: center; font-weight: 600;">Novels</th>
+                        <th style="padding: 16px; text-align: center; font-weight: 600;">Novel Limit</th>
+                        <th style="padding: 16px; text-align: center; font-weight: 600;">Webtoons</th>
+                        <th style="padding: 16px; text-align: center; font-weight: 600;">Webtoon Limit</th>
+                        <th style="padding: 16px; text-align: center; font-weight: 600;">Tokens</th>
+                        <th style="padding: 16px; text-align: left; font-weight: 600;">Last Login</th>
+                        <th style="padding: 16px; text-align: center; font-weight: 600;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="users-tbody">
+
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="empty-state" style="display: none; text-align: center; padding: 60px 20px;">
+        <div style="font-size: 3rem; margin-bottom: 15px;">🔍</div>
+        <h3 style="color: var(--text-secondary); font-weight: normal;">No users found</h3>
+        <p style="color: var(--text-secondary); margin-top: 10px;">Try adjusting your search query</p>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
+<script>
+    let users = [];
+    let searchTimeout = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadUsers();
+
+        const searchInput = document.getElementById('user-search');
+        searchInput.addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                loadUsers(e.target.value.trim());
+            }, 300);
+        });
+    });
+
+    async function loadUsers(search = '') {
+        try {
+            const url = search
+                ? `/admin/api/users?search=${encodeURIComponent(search)}`
+                : '/admin/api/users';
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.success) {
+                users = data.users;
+                renderUsers();
+            } else {
+                throw new Error(data.error || 'Failed to load users');
+            }
+        } catch (error) {
+            console.error('Error loading users:', error);
+            window.showAlertModal('Error', `Failed to load users: ${error.message}`, 'error');
+        }
+    }
+
+    function renderUsers() {
+        const loadingState = document.getElementById('loading-state');
+        const tableContainer = document.getElementById('users-table-container');
+        const emptyState = document.getElementById('empty-state');
+        const statsContainer = document.getElementById('user-stats');
+        const tbody = document.getElementById('users-tbody');
+        const userCount = document.getElementById('user-count');
+
+        loadingState.style.display = 'none';
+
+        if (users.length === 0) {
+
+            tableContainer.style.display = 'none';
+            statsContainer.style.display = 'none';
+            emptyState.style.display = 'block';
+        } else {
+
+            emptyState.style.display = 'none';
+            tableContainer.style.display = 'block';
+            statsContainer.style.display = 'block';
+
+            userCount.textContent = users.length;
+
+            tbody.innerHTML = '';
+
+            users.forEach(user => {
+                const row = document.createElement('tr');
+                row.style.borderBottom = '1px solid var(--border-light)';
+                row.style.transition = 'background 0.2s';
+                row.onmouseover = () => row.style.background = 'var(--bg-primary)';
+                row.onmouseout = () => row.style.background = 'transparent';
+
+                const adminBadge = user.is_admin
+                    ? '<span style="background: #4CAF50; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">👑 ADMIN</span>'
+                    : '<span style="color: var(--text-secondary); font-size: 0.9rem;">—</span>';
+
+                const lastLogin = user.last_login
+                    ? new Date(user.last_login).toLocaleDateString()
+                    : '<span style="color: var(--text-secondary);">Never</span>';
+
+                const tokenFormatted = (user.total_tokens || 0).toLocaleString();
+
+                const unlimitedBadge = '<span style="color: #4CAF50;">∞ Unlimited</span>';
+
+                let novelLimitDisplay;
+                if (user.is_admin) {
+                    novelLimitDisplay = unlimitedBadge;
+                } else if (user.max_novels_override === 0) {
+                    novelLimitDisplay = unlimitedBadge;
+                } else if (user.max_novels_override) {
+                    novelLimitDisplay = `<span style="font-weight: 600;">${user.max_novels_override}</span> <span style="font-size: 0.8rem; color: var(--text-secondary);">(custom)</span>`;
+                } else {
+                    novelLimitDisplay = '<span style="color: var(--text-secondary);">Default</span>';
+                }
+
+                let webtoonLimitDisplay;
+                if (user.is_admin) {
+                    webtoonLimitDisplay = unlimitedBadge;
+                } else if (user.max_webtoons_override === 0) {
+                    webtoonLimitDisplay = unlimitedBadge;
+                } else if (user.max_webtoons_override) {
+                    webtoonLimitDisplay = `<span style="font-weight: 600;">${user.max_webtoons_override}</span> <span style="font-size: 0.8rem; color: var(--text-secondary);">(custom)</span>`;
+                } else {
+                    webtoonLimitDisplay = '<span style="color: var(--text-secondary);">Default</span>';
+                }
+
+                row.innerHTML = `
+                <td style="padding: 16px; font-weight: 500;">${escapeHtml(user.username)}</td>
+                <td style="padding: 16px; color: var(--text-secondary); font-size: 0.9rem;">${escapeHtml(user.email)}</td>
+                <td style="padding: 16px; text-align: center;">${adminBadge}</td>
+                <td style="padding: 16px; text-align: center; font-weight: 500;">${user.novel_count || 0}</td>
+                <td style="padding: 16px; text-align: center; font-size: 0.9rem;">${novelLimitDisplay}</td>
+                <td style="padding: 16px; text-align: center; font-weight: 500;">${user.webtoon_count || 0}</td>
+                <td style="padding: 16px; text-align: center; font-size: 0.9rem;">${webtoonLimitDisplay}</td>
+                <td style="padding: 16px; text-align: center; color: var(--text-secondary); font-size: 0.9rem;">${tokenFormatted}</td>
+                <td style="padding: 16px; color: var(--text-secondary); font-size: 0.9rem;">${lastLogin}</td>
+                <td style="padding: 16px; text-align: center;">
+                    <button 
+                        class="btn btn-sm ${user.is_admin ? 'btn-danger' : 'btn-success'}" 
+                        onclick="toggleAdmin(${user.id}, '${escapeHtml(user.username)}', ${user.is_admin})"
+                        style="padding: 6px 12px; font-size: 0.85rem; margin-right: 5px;">
+                        ${user.is_admin ? '❌ Revoke Admin' : '✅ Grant Admin'}
+                    </button>
+                    ${!user.is_admin ? `
+                        <button class="btn btn-sm btn-secondary" onclick="editNovelLimit(${user.id}, '${escapeHtml(user.username)}', ${user.max_novels_override})" style="padding: 6px 12px; font-size: 0.85rem; margin-right: 5px;">📚 Edit Novel Limit</button>
+                        <button class="btn btn-sm btn-secondary" onclick="editWebtoonLimit(${user.id}, '${escapeHtml(user.username)}', ${user.max_webtoons_override})" style="padding: 6px 12px; font-size: 0.85rem; margin-right: 5px;">🖼️ Edit Webtoon Limit</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteUser(${user.id}, '${escapeHtml(user.username)}')" style="padding: 6px 12px; font-size: 0.85rem;">🗑️ Delete</button>
+                    ` : ''}
+                </td>
+            `;
+
+                tbody.appendChild(row);
+            });
+        }
+    }
+
+    async function toggleAdmin(userId, username, currentAdmin) {
+        const action = currentAdmin ? 'revoke' : 'grant';
+        const confirmed = confirm(
+            `Are you sure you want to ${action} admin privileges for "${username}"?`
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const response = await window.fetchWithCSRF(`/admin/api/users/${userId}/toggle-admin`, {
+                method: 'POST'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                window.showAlertModal('Success', data.message, 'success');
+
+                loadUsers(document.getElementById('user-search').value.trim());
+            } else {
+                throw new Error(data.error || 'Failed to toggle admin status');
+            }
+        } catch (error) {
+            console.error('Error toggling admin:', error);
+            window.showAlertModal('Error', `Failed to toggle admin: ${error.message}`, 'error');
+        }
+    }
+
+    async function editNovelLimit(userId, username, currentLimit) {
+        const input = prompt(`Set novel limit for "${username}":\n\nEnter a number (leave blank for default, 0 for unlimited):`, currentLimit !== null ? currentLimit : '');
+
+        if (input === null) return;
+
+        let limit;
+        if (input === '' || input.trim() === '') {
+            limit = null;
+        } else {
+            limit = parseInt(input);
+            if (isNaN(limit) || limit < 0) {
+                window.showAlertModal('Error', 'Please enter a valid number (0 or greater)', 'error');
+                return;
+            }
+        }
+
+        try {
+            const response = await window.fetchWithCSRF(`/admin/api/users/${userId}/novel-limit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limit })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                window.showAlertModal('Success', data.message, 'success');
+                loadUsers(document.getElementById('user-search').value.trim());
+            } else {
+                throw new Error(data.error || 'Failed to update novel limit');
+            }
+        } catch (error) {
+            console.error('Error updating novel limit:', error);
+            window.showAlertModal('Error', `Failed to update novel limit: ${error.message}`, 'error');
+        }
+    }
+
+    async function editWebtoonLimit(userId, username, currentLimit) {
+        const input = prompt(`Set webtoon limit for "${username}":\n\nEnter a number (leave blank for default, 0 for unlimited):`, currentLimit !== null ? currentLimit : '');
+
+        if (input === null) return;
+
+        let limit;
+        if (input === '' || input.trim() === '') {
+            limit = null;
+        } else {
+            limit = parseInt(input);
+            if (isNaN(limit) || limit < 0) {
+                window.showAlertModal('Error', 'Please enter a valid number (0 or greater)', 'error');
+                return;
+            }
+        }
+
+        try {
+            const response = await window.fetchWithCSRF(`/admin/api/users/${userId}/webtoon-limit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limit })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                window.showAlertModal('Success', data.message, 'success');
+                loadUsers(document.getElementById('user-search').value.trim());
+            } else {
+                throw new Error(data.error || 'Failed to update webtoon limit');
+            }
+        } catch (error) {
+            console.error('Error updating webtoon limit:', error);
+            window.showAlertModal('Error', `Failed to update webtoon limit: ${error.message}`, 'error');
+        }
+    }
+
+    async function deleteUser(userId, username) {
+        const confirmed = confirm(
+            `⚠️ WARNING: This action cannot be undone!\n\nAre you sure you want to permanently delete the user "${username}"?\n\nThis will delete:\n• All their novels and chapters\n• All their webtoon jobs\n• All their settings\n• Their account completely`
+        );
+
+        if (!confirmed) return;
+
+        const doubleConfirm = confirm(`Type OK to confirm deletion of user "${username}"`);
+        if (!doubleConfirm) return;
+
+        try {
+            const response = await window.fetchWithCSRF(`/admin/api/users/${userId}/delete`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                window.showAlertModal('Success', `User "${username}" has been deleted`, 'success');
+                loadUsers(document.getElementById('user-search').value.trim());
+            } else {
+                throw new Error(data.error || 'Failed to delete user');
+            }
+        } catch (error) {
+            console.error('Error deleting user:', error);
+            window.showAlertModal('Error', `Failed to delete user: ${error.message}`, 'error');
+        }
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+</script>
+
+<style>
+    .btn-sm {
+        font-size: 0.85rem;
+        padding: 6px 14px;
+    }
+
+    table th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+</style>
+{% endblock %}

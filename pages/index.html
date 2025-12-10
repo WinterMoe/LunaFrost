@@ -1,0 +1,715 @@
+{% extends "base.html" %}
+
+{% block title %}Library - LunaFrost Translator{% endblock %}
+
+{% block content %}
+<div class="container">
+    <header>
+        <div style="display: flex; justify-content: center; align-items: center; position: relative;">
+            {% if has_webtoons %}
+            <div id="category-switcher" style="position: absolute; left: 0; display: flex; gap: 8px; align-items: center;">
+                <button id="category-novels" class="category-btn active" data-category="novels" 
+                    style="padding: 8px 16px; border: 2px solid var(--border-light); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 0.9rem; transition: all 0.2s;">
+                    📚 Novels
+                </button>
+                <button id="category-webtoons" class="category-btn" data-category="webtoons"
+                    style="padding: 8px 16px; border: 2px solid var(--border-light); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 0.9rem; transition: all 0.2s;">
+                    🖼️ Manga/Webtoon
+                </button>
+            </div>
+            {% endif %}
+            <img src="{{ url_for('static', filename='images/logo_transparent_resized.png') }}"
+                alt="LunaFrost Translator" style="height: 60px;">
+            <div style="position: absolute; right: 0;">
+                <button id="import-epub-btn" class="btn btn-success"
+                    style="font-size: 1.5rem; width: 50px; height: 50px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center;"
+                    title="Import Options">
+                    +
+                </button>
+                <div id="import-dropdown" style="display: none; position: absolute; right: 0; top: 60px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 8px; box-shadow: var(--shadow-lg); min-width: 200px; z-index: 1000; overflow: hidden;">
+                    <button class="dropdown-option" id="import-epub-option" style="width: 100%; padding: 12px 16px; text-align: left; background: transparent; border: none; color: var(--text-primary); cursor: pointer; transition: background 0.2s;">
+                        📚 Import EPUB
+                    </button>
+                    <button class="dropdown-option" id="import-shared-option" style="width: 100%; padding: 12px 16px; text-align: left; background: transparent; border: none; border-top: 1px solid var(--border-light); color: var(--text-primary); cursor: pointer; transition: background 0.2s;">
+                        🔗 Import Shared Novel
+                    </button>
+                    <button class="dropdown-option" id="import-webtoon-option" style="width: 100%; padding: 12px 16px; text-align: left; background: transparent; border: none; border-top: 1px solid var(--border-light); color: var(--text-primary); cursor: pointer; transition: background 0.2s;">
+                        🖼️ Import Manga/Webtoon
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div style="margin-top: 20px;">
+            <input type="text" id="search-input" placeholder="Search novels by name or 'tag:tagname'..."
+                style="width: 100%; padding: 10px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;">
+        </div>
+    </header>
+
+    <div class="novels-grid" id="novels-grid">
+        {% if novels %}
+        {% for novel_id, novel in novels.items() %}
+        <a href="/novel/{{ novel_id }}" class="novel-card-link" data-category="novels"
+            data-tags="{{ novel.get('translated_tags', novel.tags)|join(',') }}">
+            <div class="novel-card">
+                {% if settings.get('show_covers', True) and novel.get('cover_image') %}
+                <div style="text-align: center; margin-bottom: 12px;">
+                    <img src="/images/{{ novel.cover_image }}" alt="Cover"
+                        style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                </div>
+                {% endif %}
+                <h2>{{ get_display_title(novel) }}</h2>
+                {% if novel.get('author') %}
+                <p style="color: #718096; font-size: 0.72rem;">By {{ novel.get('translated_author', novel.author) }}</p>
+                {% endif %}
+                <div class="novel-info">
+                    📖 {{ count_regular_chapters(novel.chapters) }} chapters
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+        {% endif %}
+        
+        {% if webtoons %}
+        {% for webtoon_id, webtoon in webtoons.items() %}
+        <a href="/webtoon/{{ webtoon.job_id }}" class="novel-card-link" data-category="webtoons"
+            data-tags="{{ webtoon.get('translated_tags', webtoon.tags)|join(',') }}">
+            <div class="novel-card">
+                {% if settings.get('show_covers', True) and webtoon.get('cover_image') %}
+                <div style="text-align: center; margin-bottom: 12px; position: relative;">
+                    <img src="/images/{{ session.get('user_id') }}/{{ webtoon.cover_image }}" alt="Cover"
+                        style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
+                        loading="lazy"
+                        onerror="this.style.display='none'; this.parentElement.style.display='none';">
+                    <span style="position: absolute; top: 8px; right: 8px; background: {{ '#6366f1' if webtoon.reading_mode == 'manga' else '#10b981' }}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">
+                        {{ 'Manga' if webtoon.reading_mode == 'manga' else 'Webtoon' }}
+                    </span>
+                </div>
+                {% else %}
+                <div style="text-align: center; margin-bottom: 12px;">
+                    <div style="background: linear-gradient(135deg, {{ '#6366f1' if webtoon.reading_mode == 'manga' else '#10b981' }}, {{ '#8b5cf6' if webtoon.reading_mode == 'manga' else '#059669' }}); padding: 40px 20px; border-radius: 8px; color: white;">
+                        <div style="font-size: 2rem;">{{ '📖' if webtoon.reading_mode == 'manga' else '📜' }}</div>
+                        <div style="font-size: 0.8rem; margin-top: 8px;">{{ 'Manga' if webtoon.reading_mode == 'manga' else 'Webtoon' }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                <h2>{{ webtoon.title or 'Untitled' }}</h2>
+                {% if webtoon.author %}
+                <div style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 4px;">by {{ webtoon.author }}</div>
+                {% endif %}
+                <div class="novel-info" style="margin-top: 8px;">
+                    📚 {{ webtoon.chapter_count or webtoon.total_images or 0 }} {{ 'pages' if webtoon.reading_mode == 'manga' else 'images' }}
+                    {% if webtoon.status == 'completed' %}
+                    • ✅ Translated
+                    {% elif webtoon.status == 'processing' %}
+                    • ⏳ Processing
+                    {% elif webtoon.status == 'draft' %}
+                    • 📝 Draft
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+        {% endfor %}
+        {% endif %}
+    </div>
+
+</div>
+
+<div id="shared-import-modal" class="shortcuts-modal" style="z-index: 2000; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); align-items: center; justify-content: center; display: none;">
+    <div class="shortcuts-content" style="width: 95%; max-width: 500px; max-height: 85vh; overflow-y: auto;">
+        <div class="shortcuts-header" style="border-bottom: 1px solid var(--border-light);">
+            <h2>🔗 Import Shared Novel</h2>
+            <button class="close-btn" onclick="closeSharedModal()">&times;</button>
+        </div>
+        <div class="shortcuts-body" style="padding: 15px;">
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label style="font-size: 0.9rem; margin-bottom: 8px; display: block;">Shared Novel Link</label>
+                <input type="text" id="shared-link-input" class="form-control" 
+                    placeholder="https://lunafrost.moe/shared/TOKEN or just the token" 
+                    style="padding: 10px; width: 100%; border: 1px solid var(--border-light); border-radius: 8px;">
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px;">
+                    Paste the shared novel link or token here
+                </p>
+            </div>
+            <div id="shared-import-message" style="display: none; padding: 12px; border-radius: 8px; margin-bottom: 15px;"></div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-secondary" onclick="closeSharedModal()" style="flex: 1;">Cancel</button>
+                <button id="import-shared-btn" class="btn btn-success" style="flex: 2;">Import Novel</button>
+            </div>
+            <div id="shared-loading-indicator" style="display: none; text-align: center; padding: 20px;">
+                <div class="spinner" style="margin: 0 auto 15px;"></div>
+                <p id="shared-loading-message">Importing novel...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="epub-import-modal" class="shortcuts-modal" style="z-index: 2000; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); align-items: center; justify-content: center;">
+    <div class="shortcuts-content" style="width: 95%; max-width: 500px; max-height: 85vh; overflow-y: auto;">
+        <div class="shortcuts-header" style="border-bottom: 1px solid var(--border-light);">
+            <h2>📚 Import EPUB</h2>
+            <button class="close-btn" onclick="closeEpubModal()">&times;</button>
+        </div>
+        <div class="shortcuts-body" style="padding: 15px;">
+            
+            <div id="upload-step" style="display: block;">
+                <h3 style="margin-bottom: 10px; font-size: 1rem;">Select EPUB File</h3>
+                <input type="file" id="epub-file-input" accept=".epub" style="margin-bottom: 15px; width: 100%;">
+                <button id="analyze-btn" class="btn btn-primary" style="width: 100%;">Analyze EPUB</button>
+            </div>
+
+            
+            <div id="preview-step" style="display: none;">
+                <h3 style="margin-bottom: 10px; font-size: 1rem;">Novel Metadata</h3>
+                <div class="form-group" style="margin-bottom: 10px;">
+                    <label style="font-size: 0.9rem;">Title</label>
+                    <input type="text" id="novel-title" class="form-control" placeholder="Novel Title" style="padding: 8px;">
+                </div>
+                <div class="form-group" style="margin-bottom: 10px;">
+                    <label style="font-size: 0.9rem;">Author</label>
+                    <input type="text" id="novel-author" class="form-control" placeholder="Author Name" style="padding: 8px;">
+                </div>
+                <div class="form-group" style="margin-bottom: 10px;">
+                    <label style="font-size: 0.9rem;">Synopsis</label>
+                    <textarea id="novel-synopsis" class="form-control" rows="3" placeholder="Synopsis..." style="padding: 8px;"></textarea>
+                </div>
+                <div class="form-group" style="margin-bottom: 10px;">
+                    <label style="font-size: 0.9rem;">Tags (comma-separated)</label>
+                    <input type="text" id="novel-tags" class="form-control" placeholder="fantasy, action, romance" style="padding: 8px;">
+                </div>
+
+                <h3 style="margin-top: 15px; margin-bottom: 10px; font-size: 1rem;">Chapters</h3>
+                <p style="color: var(--text-secondary); margin-bottom: 8px; font-size: 0.9rem;">
+                    <span id="chapter-summary"></span>
+                </p>
+                <div id="chapters-list" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: 8px; padding: 8px;">
+                    
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 15px;">
+                    <button id="back-btn" class="btn btn-secondary" style="flex: 1;">← Back</button>
+                    <button id="import-btn" class="btn btn-success" style="flex: 2;">Import Novel</button>
+                </div>
+            </div>
+
+            
+            <div id="loading-indicator" style="display: none; text-align: center; padding: 40px;">
+                <div class="spinner" style="margin: 0 auto 15px;"></div>
+                <p id="loading-message">Processing EPUB...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const searchInput = document.getElementById('search-input');
+    const novelsGrid = document.getElementById('novels-grid');
+    let novelCards = novelsGrid ? Array.from(novelsGrid.querySelectorAll('.novel-card-link')) : [];
+    let currentCategory = 'novels';
+
+    {% if has_webtoons %}
+    const categorySwitcher = document.getElementById('category-switcher');
+    const categoryNovelsBtn = document.getElementById('category-novels');
+    const categoryWebtoonsBtn = document.getElementById('category-webtoons');
+    
+
+    const savedCategory = localStorage.getItem('selectedCategory') || 'novels';
+    currentCategory = savedCategory;
+    
+    function updateCategoryButtons(activeCategory) {
+        if (activeCategory === 'novels') {
+            categoryNovelsBtn.classList.add('active');
+            categoryNovelsBtn.style.background = 'var(--primary-color)';
+            categoryNovelsBtn.style.borderColor = 'var(--primary-color)';
+            categoryNovelsBtn.style.color = 'white';
+            categoryWebtoonsBtn.classList.remove('active');
+            categoryWebtoonsBtn.style.background = 'var(--bg-secondary)';
+            categoryWebtoonsBtn.style.borderColor = 'var(--border-light)';
+            categoryWebtoonsBtn.style.color = 'var(--text-primary)';
+        } else {
+            categoryWebtoonsBtn.classList.add('active');
+            categoryWebtoonsBtn.style.background = 'var(--primary-color)';
+            categoryWebtoonsBtn.style.borderColor = 'var(--primary-color)';
+            categoryWebtoonsBtn.style.color = 'white';
+            categoryNovelsBtn.classList.remove('active');
+            categoryNovelsBtn.style.background = 'var(--bg-secondary)';
+            categoryNovelsBtn.style.borderColor = 'var(--border-light)';
+            categoryNovelsBtn.style.color = 'var(--text-primary)';
+        }
+    }
+    
+    function filterByCategory(category) {
+        currentCategory = category;
+
+        localStorage.setItem('selectedCategory', category);
+        novelCards.forEach(card => {
+            const cardCategory = card.getAttribute('data-category');
+            if (cardCategory === category) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+
+        if (searchInput.value.trim()) {
+            searchInput.dispatchEvent(new Event('input'));
+        }
+    }
+    
+    categoryNovelsBtn.addEventListener('click', () => {
+        updateCategoryButtons('novels');
+        filterByCategory('novels');
+    });
+    
+    categoryWebtoonsBtn.addEventListener('click', () => {
+        updateCategoryButtons('webtoons');
+        filterByCategory('webtoons');
+    });
+    
+
+    updateCategoryButtons(savedCategory);
+    filterByCategory(savedCategory);
+    {% endif %}
+
+    searchInput.addEventListener('input', () => {
+        const query = searchInput.value.toLowerCase().trim();
+        let isTagSearch = false;
+        let tagQuery = '';
+
+        if (query.startsWith('tag:')) {
+            isTagSearch = true;
+            tagQuery = query.substring(4).trim();  
+        }
+
+        novelCards.forEach(card => {
+
+            {% if has_webtoons %}
+            const cardCategory = card.getAttribute('data-category');
+            const categoryMatches = cardCategory === currentCategory;
+            
+            if (!categoryMatches) {
+                card.style.display = 'none';
+                return;
+            }
+            {% endif %}
+            
+            const title = card.querySelector('h2').textContent.toLowerCase();
+            const dataTags = card.getAttribute('data-tags') ? card.getAttribute('data-tags').toLowerCase().split(',') : [];
+
+            let matches = false;
+            if (isTagSearch) {
+                matches = dataTags.some(tag => tag.trim().includes(tagQuery));
+            } else {
+                matches = title.includes(query) || dataTags.some(tag => tag.trim().includes(query));
+            }
+
+            card.style.display = matches ? '' : 'none';
+        });
+    });
+
+    
+    let epubData = null;
+
+    function closeEpubModal() {
+        document.getElementById('epub-import-modal').style.display = 'none';
+        document.getElementById('upload-step').style.display = 'block';
+        document.getElementById('preview-step').style.display = 'none';
+        document.getElementById('loading-indicator').style.display = 'none';
+        document.getElementById('epub-file-input').value = '';
+        epubData = null;
+    }
+
+    const importBtn = document.getElementById('import-epub-btn');
+    const dropdown = document.getElementById('import-dropdown');
+    const importEpubOption = document.getElementById('import-epub-option');
+    const importSharedOption = document.getElementById('import-shared-option');
+    const importWebtoonOption = document.getElementById('import-webtoon-option');
+    
+
+    importBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+    });
+    
+
+    document.addEventListener('click', (e) => {
+        if (!importBtn.contains(e.target) && !dropdown.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+    
+
+    document.querySelectorAll('.dropdown-option').forEach(option => {
+        option.addEventListener('mouseenter', function() {
+            this.style.background = 'var(--bg-hover)';
+        });
+        option.addEventListener('mouseleave', function() {
+            this.style.background = 'transparent';
+        });
+    });
+    
+
+    importEpubOption.addEventListener('click', () => {
+        dropdown.style.display = 'none';
+        document.getElementById('epub-import-modal').style.display = 'flex';
+    });
+    
+
+    importSharedOption.addEventListener('click', () => {
+        dropdown.style.display = 'none';
+        document.getElementById('shared-import-modal').style.display = 'flex';
+    });
+    
+
+    importWebtoonOption.addEventListener('click', () => {
+        dropdown.style.display = 'none';
+        window.location.href = '/webtoon/create';
+    });
+    
+
+    function closeSharedModal() {
+        document.getElementById('shared-import-modal').style.display = 'none';
+        document.getElementById('shared-link-input').value = '';
+        document.getElementById('shared-import-message').style.display = 'none';
+        document.getElementById('shared-loading-indicator').style.display = 'none';
+    }
+    
+    document.getElementById('import-shared-btn').addEventListener('click', async () => {
+        const linkInput = document.getElementById('shared-link-input');
+        const sharedLink = linkInput.value.trim();
+        const messageDiv = document.getElementById('shared-import-message');
+        const loadingDiv = document.getElementById('shared-loading-indicator');
+        const loadingMessage = document.getElementById('shared-loading-message');
+        
+        if (!sharedLink) {
+            messageDiv.style.display = 'block';
+            messageDiv.style.background = '#fed7d7';
+            messageDiv.style.color = '#742a2a';
+            messageDiv.style.border = '1px solid #fc8181';
+            messageDiv.textContent = '❌ Please enter a shared novel link or token';
+            return;
+        }
+        
+
+        let token = sharedLink;
+        try {
+            const url = new URL(sharedLink);
+            const pathParts = url.pathname.split('/');
+            if (pathParts.includes('shared') && pathParts[pathParts.indexOf('shared') + 1]) {
+                token = pathParts[pathParts.indexOf('shared') + 1];
+            }
+        } catch (e) {
+
+            token = sharedLink;
+        }
+        
+
+        messageDiv.style.display = 'none';
+        loadingDiv.style.display = 'block';
+        loadingMessage.textContent = 'Importing shared novel...';
+        
+        try {
+            const response = await fetchWithCSRF('/api/shared/import', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: token })
+            });
+            
+            const data = await response.json();
+            
+            loadingDiv.style.display = 'none';
+            messageDiv.style.display = 'block';
+            
+            if (data.success) {
+                messageDiv.style.background = '#c6f6d5';
+                messageDiv.style.color = '#22543d';
+                messageDiv.style.border = '1px solid #9ae6b4';
+                messageDiv.textContent = `✅ Successfully imported "${data.novel_title}"!`;
+                
+                setTimeout(() => {
+                    closeSharedModal();
+                    window.location.reload();
+                }, 1500);
+            } else {
+                messageDiv.style.background = '#fed7d7';
+                messageDiv.style.color = '#742a2a';
+                messageDiv.style.border = '1px solid #fc8181';
+                messageDiv.textContent = `❌ ${data.error || 'Failed to import shared novel'}`;
+            }
+        } catch (error) {
+            loadingDiv.style.display = 'none';
+            messageDiv.style.display = 'block';
+            messageDiv.style.background = '#fed7d7';
+            messageDiv.style.color = '#742a2a';
+            messageDiv.style.border = '1px solid #fc8181';
+            messageDiv.textContent = `❌ Error: ${error.message}`;
+        }
+    });
+
+    document.getElementById('analyze-btn').addEventListener('click', async () => {
+        const fileInput = document.getElementById('epub-file-input');
+        if (!fileInput.files || fileInput.files.length === 0) {
+            window.showAlertModal('Error', 'Please select an EPUB file first.', 'error');
+            return;
+        }
+
+        const file = fileInput.files[0];
+        if (!file.name.endsWith('.epub')) {
+            window.showAlertModal('Error', 'Please select a valid EPUB file.', 'error');
+            return;
+        }
+
+        
+        document.getElementById('upload-step').style.display = 'none';
+        document.getElementById('loading-indicator').style.display = 'block';
+        document.getElementById('loading-message').textContent = 'Analyzing EPUB file...';
+
+        try {
+            const formData = new FormData();
+            formData.append('epub_file', file);
+
+            const response = await fetchWithCSRF('/api/epub/analyze', {
+                method: 'POST',
+                body: formData
+
+            });
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to analyze EPUB');
+            }
+
+            
+            epubData = data;
+
+            
+            console.log('EPUB Analysis Result:', {
+                totalChapters: data.chapters.length,
+                firstChapter: data.chapters[0],
+                allChapters: data.chapters,
+                epubTempFile: data.epub_temp_file
+            });
+
+            
+            document.getElementById('novel-title').value = data.title || '';
+            document.getElementById('novel-author').value = data.author || '';
+            document.getElementById('novel-synopsis').value = data.synopsis || '';
+            document.getElementById('novel-tags').value = '';
+
+            
+            populateChaptersList(data.chapters, data.new_chapters || [], data.duplicate_chapters || []);
+
+            
+            document.getElementById('loading-indicator').style.display = 'none';
+            document.getElementById('preview-step').style.display = 'block';
+
+        } catch (error) {
+            console.error('Error analyzing EPUB:', error);
+            window.showAlertModal('Error', error.message, 'error');
+            document.getElementById('loading-indicator').style.display = 'none';
+            document.getElementById('upload-step').style.display = 'block';
+        }
+    });
+
+    function populateChaptersList(allChapters, newChapters, duplicateChapters) {
+        const chaptersList = document.getElementById('chapters-list');
+        const summary = document.getElementById('chapter-summary');
+
+        const newCount = newChapters.length;
+        const dupCount = duplicateChapters.length;
+        const totalCount = allChapters.length;
+
+        summary.innerHTML = `<strong>${totalCount}</strong> chapters found: <span style="color: #48bb78;">${newCount} new</span>, <span style="color: #ed8936;">${dupCount} duplicates</span>`;
+
+        chaptersList.innerHTML = '';
+
+        allChapters.forEach((chapter, index) => {
+            const isDuplicate = duplicateChapters.some(dup => dup.number === chapter.number && dup.title === chapter.title);
+            const isChecked = !isDuplicate;
+
+            
+            console.log(`Chapter ${index}:`, {
+                number: chapter.number,
+                title: chapter.title,
+                hasTitle: !!chapter.title
+            });
+
+            const chapterDiv = document.createElement('div');
+            chapterDiv.style.cssText = 'padding: 8px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; gap: 10px;';
+            chapterDiv.dataset.chapterIndex = index;
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.checked = isChecked;
+            checkbox.dataset.chapterIndex = index;
+            checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer; flex-shrink: 0;';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.style.cssText = 'flex: 1; display: flex; align-items: center; gap: 8px;';
+
+            const label = document.createElement('label');
+            label.style.cssText = 'flex: 1; cursor: pointer; user-select: none; min-width: 0;';
+            label.className = 'chapter-display';
+
+            const chapterTitle = chapter.title || 'Untitled';
+            const displayText = `<strong>Chapter ${chapter.number}</strong>: ${chapterTitle}`;
+            const duplicateTag = isDuplicate ? '<span style="color: #ed8936; font-size: 0.85rem;">(Duplicate)</span>' : '';
+
+            label.innerHTML = `${displayText} ${duplicateTag}`;
+
+            label.addEventListener('click', () => {
+                checkbox.checked = !checkbox.checked;
+            });
+
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-secondary';
+            editBtn.style.cssText = 'padding: 4px 12px; font-size: 0.85rem; flex-shrink: 0;';
+            editBtn.textContent = '✏️ Edit';
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleEditMode(chapterDiv, index);
+            });
+
+            contentDiv.appendChild(label);
+            contentDiv.appendChild(editBtn);
+
+            chapterDiv.appendChild(checkbox);
+            chapterDiv.appendChild(contentDiv);
+            chaptersList.appendChild(chapterDiv);
+        });
+    }
+
+    function toggleEditMode(chapterDiv, index) {
+        const chapter = epubData.chapters[index];
+        const contentDiv = chapterDiv.querySelector('div');
+        const label = contentDiv.querySelector('label');
+        const editBtn = contentDiv.querySelector('button');
+
+        if (chapterDiv.dataset.editing === 'true') {
+            
+            const numberInput = contentDiv.querySelector('.edit-number');
+            const titleInput = contentDiv.querySelector('.edit-title');
+
+            if (numberInput && titleInput) {
+                chapter.number = numberInput.value.trim();
+                chapter.title = titleInput.value.trim();
+
+                
+                label.innerHTML = `<strong>Chapter ${chapter.number}</strong>: ${chapter.title}`;
+                label.style.display = '';
+                editBtn.textContent = '✏️ Edit';
+                chapterDiv.dataset.editing = 'false';
+
+                
+                numberInput.remove();
+                titleInput.remove();
+            }
+        } else {
+            
+            label.style.display = 'none';
+
+            const numberInput = document.createElement('input');
+            numberInput.type = 'text';
+            numberInput.className = 'edit-number';
+            numberInput.value = chapter.number;
+            numberInput.style.cssText = 'width: 80px; padding: 4px 8px; border: 1px solid var(--border-light); border-radius: 4px; margin-right: 8px;';
+            numberInput.placeholder = 'Number';
+
+            const titleInput = document.createElement('input');
+            titleInput.type = 'text';
+            titleInput.className = 'edit-title';
+            titleInput.value = chapter.title;
+            titleInput.style.cssText = 'flex: 1; padding: 4px 8px; border: 1px solid var(--border-light); border-radius: 4px;';
+            titleInput.placeholder = 'Title';
+
+            contentDiv.insertBefore(titleInput, editBtn);
+            contentDiv.insertBefore(numberInput, titleInput);
+
+            editBtn.textContent = '💾 Save';
+            chapterDiv.dataset.editing = 'true';
+        }
+    }
+
+    document.getElementById('back-btn').addEventListener('click', () => {
+        document.getElementById('preview-step').style.display = 'none';
+        document.getElementById('upload-step').style.display = 'block';
+    });
+
+    document.getElementById('import-btn').addEventListener('click', async () => {
+        if (!epubData) {
+            window.showAlertModal('Error', 'No EPUB data available. Please analyze an EPUB first.', 'error');
+            return;
+        }
+
+        
+        const checkboxes = document.querySelectorAll('#chapters-list input[type="checkbox"]');
+        const selectedChapters = [];
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                const index = parseInt(cb.dataset.chapterIndex);
+                selectedChapters.push(epubData.chapters[index]);
+            }
+        });
+
+        if (selectedChapters.length === 0) {
+            window.showAlertModal('Error', 'Please select at least one chapter to import.', 'error');
+            return;
+        }
+
+        
+        const title = document.getElementById('novel-title').value.trim();
+        const author = document.getElementById('novel-author').value.trim();
+        const synopsis = document.getElementById('novel-synopsis').value.trim();
+        const tagsStr = document.getElementById('novel-tags').value.trim();
+        const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
+
+        if (!title) {
+            window.showAlertModal('Error', 'Please enter a novel title.', 'error');
+            return;
+        }
+
+        
+        document.getElementById('preview-step').style.display = 'none';
+        document.getElementById('loading-indicator').style.display = 'block';
+        document.getElementById('loading-message').textContent = `Importing ${selectedChapters.length} chapter(s)...`;
+
+        try {
+            const response = await fetchWithCSRF('/api/epub/import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    title: title,
+                    author: author,
+                    synopsis: synopsis,
+                    tags: tags,
+                    chapters: selectedChapters,
+                    epub_temp_file: epubData.epub_temp_file  
+                })
+            });
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to import EPUB');
+            }
+
+            window.showAlertModal('Success', `Successfully imported ${data.chapters_imported} chapter(s)!`, 'success');
+
+            
+            setTimeout(() => {
+                closeEpubModal();
+                window.location.reload();
+            }, 1500);
+
+        } catch (error) {
+            console.error('Error importing EPUB:', error);
+            window.showAlertModal('Error', error.message, 'error');
+            document.getElementById('loading-indicator').style.display = 'none';
+            document.getElementById('preview-step').style.display = 'block';
+        }
+    });
+</script>
+
+{% endblock %}
