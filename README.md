@@ -15,9 +15,6 @@ LunaFrost Translator is a free service that specializes in translating Korean No
 
 This project is Open Source, believing in transparency and community contribution. While you can self-host your own instance, I provide a free public version for everyone to use.
 
-### Live Site
-**Try it now for free:** [https://lunafrost.moe](https://lunafrost.moe) you will just need to provide your own API keys for what ever service you desire to use. If you start to encounter slow down on the site do let me know as I may need to scale up the server.
-
 ---
 
 ## Features
@@ -53,6 +50,7 @@ I am constantly working to improve LunaFrost. An internal roadmap is in place wi
 *   Other websites support
 *   Support Light Novels
 *   Support translating to other languages
+*   Easy to deploy and run
 
 If you have any other features you would like to see reach out and let me know.
 
@@ -72,16 +70,6 @@ If you find a bug, please open an issue on GitHub or email me at **[contact@luna
 
 ### Feature Requests
 Have an idea to make LunaFrost better? Feel free to reach out via email or open a GitHub issue with the "Enhancement" label.
-
----
-
-## Support the Project
-
-LunaFrost is provided completely free of charge. However, server costs there are server costs afterall.
-
-If you enjoy the service and would like to help keep it running, please consider donating. Every bit helps me keep the servers online and the translations flowing!
-
-[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?logo=buy-me-a-coffee&logoColor=000000&labelColor=ffdd00)](https://buymeacoffee.com/wintermoe)
 
 ---
 
